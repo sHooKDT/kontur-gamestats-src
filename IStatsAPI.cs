@@ -1,6 +1,6 @@
 ﻿namespace Kontur.GameStats.Server
 {
-	public interface IStatsAPI
+	public interface IStatsApi
 	{
 		void GetServersInfo (System.Net.HttpListenerContext context);
 

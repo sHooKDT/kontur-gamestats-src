@@ -1,66 +1,82 @@
-﻿namespace Kontur.GameStats.Server
-{
-	public class StatsAPI : IStatsAPI
-	{
-		private readonly DBWorker db;
+﻿using System;
+using System.Net;
 
-		public void GetServersInfo (System.Net.HttpListenerContext context)
+namespace Kontur.GameStats.Server
+{
+	public class StatsApi : IStatsApi
+	{
+		private readonly DbWorker db;
+
+		public void GetServersInfo (HttpListenerContext context)
 		{
-		    context.Response.StatusCode = (int) System.Net.HttpStatusCode.Accepted;
+		    context.Response.StatusCode = (int) HttpStatusCode.Accepted;
 		    using (var writer = new System.IO.StreamWriter(context.Response.OutputStream))
 		    {
 		        writer.WriteLine("You are now getting servers info !?");
 		    }
 		}
 
-		public void GetServerInfo (System.Net.HttpListenerContext context)
+		public void GetServerInfo (HttpListenerContext context)
 		{
-			throw new System.NotImplementedException ();
+			throw new NotImplementedException ();
 		}
 
-		public void PutServerInfo (System.Net.HttpListenerContext context)
+		public void PutServerInfo (HttpListenerContext context)
 		{
-			throw new System.NotImplementedException ();
+		    db.PutServerInfo("example", "example", "example");
+
+		    context.Response.StatusCode = (int) HttpStatusCode.Accepted;
+            using (var writer = new System.IO.StreamWriter(context.Response.OutputStream))
+            {
+                writer.WriteLine("put something or not, who knows..");
+            }
+        }
+
+		public void GetServerMatch (HttpListenerContext context)
+		{
+			throw new NotImplementedException ();
 		}
 
-		public void GetServerMatch (System.Net.HttpListenerContext context)
+		public void PutServerMatch (HttpListenerContext context)
 		{
-			throw new System.NotImplementedException ();
+			throw new NotImplementedException ();
 		}
 
-		public void PutServerMatch (System.Net.HttpListenerContext context)
+		public void GetServerStats (HttpListenerContext context)
 		{
-			throw new System.NotImplementedException ();
+			throw new NotImplementedException ();
 		}
 
-		public void GetServerStats (System.Net.HttpListenerContext context)
+		public void GetPlayerStats (HttpListenerContext context)
 		{
-			throw new System.NotImplementedException ();
+			throw new NotImplementedException ();
 		}
 
-		public void GetPlayerStats (System.Net.HttpListenerContext context)
+		public void GetRecentMatchesReport (HttpListenerContext context)
 		{
-			throw new System.NotImplementedException ();
+			throw new NotImplementedException ();
 		}
 
-		public void GetRecentMatchesReport (System.Net.HttpListenerContext context)
+		public void GetBestPlayersReport (HttpListenerContext context)
 		{
-			throw new System.NotImplementedException ();
+			throw new NotImplementedException ();
 		}
 
-		public void GetBestPlayersReport (System.Net.HttpListenerContext context)
+		public void GetPopularServersReport (HttpListenerContext context)
 		{
-			throw new System.NotImplementedException ();
+			throw new NotImplementedException ();
 		}
 
-		public void GetPopularServersReport (System.Net.HttpListenerContext context)
+		public void HandleIncorrect (HttpListenerContext context)
 		{
-			throw new System.NotImplementedException ();
-		}
+		    context.Response.StatusCode = (int) HttpStatusCode.BadRequest;
 
-		public void HandleIncorrect (System.Net.HttpListenerContext context)
-		{
-		    context.Response.StatusCode = (int) System.Net.HttpStatusCode.BadRequest;
+		    var parts = context.Request.RawUrl.Split('/');
+
+            Console.WriteLine("Incorrect \n" +
+                              $"1: {parts[1]} \n" +
+                              $"2: {parts[2]} \n" +
+                              $"3: {parts[3] ?? "null"}");
 
 		    using (var writer = new System.IO.StreamWriter(context.Response.OutputStream))
 		    {
@@ -68,7 +84,7 @@
 		    }
 		}
 
-		public StatsAPI (DBWorker database)
+		public StatsApi (DbWorker database)
 		{
 			db = database;
 		}

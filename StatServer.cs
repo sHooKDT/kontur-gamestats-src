@@ -1,4 +1,6 @@
-﻿namespace Kontur.GameStats.Server
+﻿using System.Threading.Tasks;
+
+namespace Kontur.GameStats.Server
 {
     internal class StatServer : System.IDisposable
     {
@@ -7,7 +9,7 @@
             listener = new System.Net.HttpListener();
 
             // TODO: Database initialisation
-            statsApi = new StatsAPI(new DBWorker());
+            statsApi = new StatsApi(new DbWorker());
         }
 
         public void Start(string prefix)
@@ -69,7 +71,7 @@
                     if (listener.IsListening)
                     {
                         var context = listener.GetContext();
-                        System.Threading.Tasks.Task.Run(() => HandleContext(context));
+                        Task.Run(() => this.HandleContext(context));
                     }
                     else
                         System.Threading.Thread.Sleep(0);
@@ -85,12 +87,14 @@
             }
         }
 
-        private async System.Threading.Tasks.Task HandleContext(System.Net.HttpListenerContext listenerContext)
+        private void HandleContext(System.Net.HttpListenerContext listenerContext)
         {
             // TODO: implement request handling
 
             var request = listenerContext.Request;
             var parts = request.RawUrl.Split('/');
+
+            System.Console.WriteLine("REQ: {0} {1}", request.RawUrl, request.HttpMethod);
 
             if (parts[1] == "servers")
             {
@@ -104,7 +108,6 @@
                 }
                 else
                 {
-                    var endpoint = parts[2];
                     switch (parts[3])
                     {
                         case "info":
@@ -159,15 +162,11 @@
             {
                 statsApi.HandleIncorrect(listenerContext);
             }
-
-            //listenerContext.Response.StatusCode = (int) HttpStatusCode.OK;
-            //using (var writer = new StreamWriter(listenerContext.Response.OutputStream))
-            //    writer.WriteLine("Raw URL was {1} \n Request of {0} type", "type", request.RawUrl);
         }
 
         private readonly System.Net.HttpListener listener;
 
-        private readonly StatsAPI statsApi;
+        private readonly StatsApi statsApi;
 
         private System.Threading.Thread listenerThread;
         private bool disposed;

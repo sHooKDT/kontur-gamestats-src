@@ -1,31 +1,39 @@
-﻿namespace Kontur.GameStats.Server
+﻿using System.Data.SQLite;
+
+namespace Kontur.GameStats.Server
 {
-	public class DBWorker
+	public class DbWorker
 	{
-	    private readonly System.Data.SQLite.SQLiteConnection sqlConnection;
-	    private readonly System.Data.SQLite.SQLiteCommand sqlCommand;
-	    private const string dbName = "GameStats.sqlite";
+	    private readonly SQLiteConnection sqlConnection;
+	    private readonly SQLiteCommand sqlCommand;
+	    private const string DbName = "GameStats.sqlite3";
 
-		public DBWorker ()
+		public DbWorker ()
 		{
-            if (System.IO.File.Exists(dbName))
-                System.Data.SQLite.SQLiteConnection.CreateFile(dbName);
+            if (System.IO.File.Exists(DbName))
+                SQLiteConnection.CreateFile(DbName);
 
-            System.Data.SQLite.SQLiteFactory factory = (System.Data.SQLite.SQLiteFactory) System.Data.Common.DbProviderFactories.GetFactory("System.Data.SQlite");
+            sqlConnection = new SQLiteConnection("Data Source= " + DbName + ";Version=3;");
+            sqlConnection.Open();
 
-		    sqlConnection = (System.Data.SQLite.SQLiteConnection) factory.CreateConnection();
+            sqlCommand = new SQLiteCommand(sqlConnection);
 
-		    sqlConnection.ConnectionString = "Data Source = " + dbName;
-		    sqlConnection.Open();
+            Init();
+        }
 
-            sqlCommand = new System.Data.SQLite.SQLiteCommand(sqlConnection);
-		}
-
-	    public void Init()
+        public void Init()
 	    {
 	        sqlCommand.CommandText =
-	            @"CREATE TABLE IF NOT EXISTS servers (endpoint TEXT, name TEXT, gamemodes TEXT)";
+	            @"CREATE TABLE IF NOT EXISTS servers (endpoint TEXT PRIMARY KEY, name TEXT, gamemodes TEXT)";
 	        sqlCommand.ExecuteNonQuery();
+	    }
+
+	    public int PutServerInfo(string endpoint, string name, string gamemodes)
+	    {
+	        sqlCommand.CommandText =
+	            $@"INSERT OR REPLACE INTO servers VALUES ({endpoint}, {name}, {gamemodes})";
+
+	        return sqlCommand.ExecuteNonQuery();
 	    }
 	}
 }
