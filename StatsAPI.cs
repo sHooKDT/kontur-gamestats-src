@@ -59,26 +59,34 @@ namespace Kontur.GameStats.Server
         public void GetServerMatch(HttpListenerContext context)
         {
             string endpoint = ExtractEndpoint(context.Request);
-            string timestamp = context.Request.RawUrl.Split('/')[4];
+            string timestamp = ExtractTimestamp(context.Request);
 
             MatchInfo matchInfo = db.GetServerMatch(endpoint, timestamp);
             string matchInfoJson = JsonConvert.SerializeObject(matchInfo);
 
-            context.Response.StatusCode = (int) HttpStatusCode.OK;
             using (var writer = new StreamWriter(context.Response.OutputStream))
             {
                 writer.Write(matchInfoJson);
             }
+
+            context.Response.StatusCode = (int)HttpStatusCode.OK;
+            context.Response.Close();
         }
 
         public void PutServerMatch(HttpListenerContext context)
         {
             var inpStream = new StreamReader(context.Request.InputStream);
 
+            string endpoint = ExtractEndpoint(context.Request);
+            DateTime timestamp = DateTimeOffset.Parse(ExtractTimestamp(context.Request)).UtcDateTime;
+
             MatchInfo matchInfo =
                 JsonConvert.DeserializeObject<MatchInfo>(inpStream.ReadToEnd());
 
-            db.PutServerMatch("", new DateTime(), matchInfo);
+            db.PutServerMatch(endpoint, timestamp, matchInfo);
+
+            context.Response.StatusCode = (int)HttpStatusCode.OK;
+            context.Response.Close();
         }
 
         public void GetServerStats(HttpListenerContext context)
@@ -126,6 +134,27 @@ namespace Kontur.GameStats.Server
         private static string ExtractEndpoint(HttpListenerRequest req)
         {
             return req.RawUrl.Split('/')[2];
+        }
+
+        private static string ExtractTimestamp(HttpListenerRequest req)
+        {
+            return req.RawUrl.Split('/')[4];
+        }
+
+        private static int ExtractCount(HttpListenerRequest req)
+        {
+            string[] spl = req.RawUrl.Split('/');
+            // If count isn't set, default value = 5
+            if (spl.Length < 3) return 5;
+
+            int count = int.Parse(spl[3]);
+            
+            // 50, no more
+            if (count >= 50) return 50;
+            // 0, no less
+            if (count <= 0) return 0;
+
+            return count;
         }
 
         public StatsApi(IDbWorker database)
