@@ -17,5 +17,10 @@
             public int deaths;
         }
 
+        public MatchInfo()
+        {
+
+        }
+
     }
 }

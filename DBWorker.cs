@@ -21,15 +21,23 @@ namespace Kontur.GameStats.Server
 
             sqlCommand = new SQLiteCommand(sqlConnection);
 
-		    this.Init();
+		    Init();
         }
 
         public void Init()
 	    {
 	        sqlCommand.CommandText =
 	            @"CREATE TABLE IF NOT EXISTS servers (endpoint TEXT PRIMARY KEY, name TEXT, gamemodes TEXT)";
-	        sqlCommand.ExecuteNonQuery();
-	    }
+            sqlCommand.ExecuteNonQuery();
+
+            sqlCommand.CommandText =
+                @"CREATE TABLE IF NOT EXISTS matches (id INTEGER PRIMARY KEY, endpoint TEXT, timestamp INTEGER, map TEXT, gamemode TEXT, frag_limit INTEGER, time_limit INTEGER, time_elapsed REAL)";
+            sqlCommand.ExecuteNonQuery();
+
+            sqlCommand.CommandText =
+                @"CREATE TABLE IF NOT EXISTS scoreboard (match_id INTEGER, name TEXT, frags INTEGER, kills INTEGER, deaths INTEGER)";
+            sqlCommand.ExecuteNonQuery();
+        }
 
         public EndpointInfo[] GetServersInfo()
         {
@@ -86,6 +94,14 @@ namespace Kontur.GameStats.Server
 
         public MatchInfo GetServerMatch(string endpoint, string timestamp)
         {
+            sqlCommand.CommandText = String.Format("SELECT * FROM matches WHERE endpoint = {0} AND timestamp = {1}", endpoint, timestamp);
+            SQLiteDataReader reader = sqlCommand.ExecuteReader();
+            while (reader.Read())
+            {
+                int id = (int)reader["id"];
+                string _endpoint = (string)reader["endpoint"];
+                break;
+            }
             throw new NotImplementedException();
         }
 
