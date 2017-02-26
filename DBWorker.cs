@@ -18,7 +18,7 @@ namespace Kontur.GameStats.Server
 
             sqlCommand = new SQLiteCommand(sqlConnection);
 
-            Init();
+		    this.Init();
         }
 
         public void Init()
