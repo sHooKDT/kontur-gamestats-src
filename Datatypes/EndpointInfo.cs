@@ -2,60 +2,40 @@
 {
     public class EndpointInfo
     {
-        private string endpoint;
-        private ServerInfo info;
+        public string endpoint;
+        public ServerInfo info;
 
         public class ServerInfo
         {
-            private string name;
-            private string[] gameModes;
+            public string name;
+            public string[] gameModes;
 
-            public ServerInfo(string name, string gamemodes)
+            public ServerInfo(string name, string[] gamemodes)
             {
                 this.name = name;
-                gameModes = gamemodes.Split(',');
+                gameModes = gamemodes;
             }
 
-            public string GetName()
+            public string GetGameModesString()
             {
-                return name;
-            }
-
-            public string[] GetGameModes()
-            {
-                return gameModes;
+                string result = "";
+                int N = gameModes.Length;
+                for (int i = 0; i < N; i++)
+                {
+                    result += gameModes[i];
+                    if (i != N - 1)
+                    {
+                        result += ",";
+                    }
+                }
+                return result;
             }
         }
 
-        public EndpointInfo(string endpoint, string name, string gamemodes)
+        public EndpointInfo(string endpoint, ServerInfo serverInfo)
         {
             this.endpoint = endpoint;
-            info = new ServerInfo(name, gamemodes);
-        }
-
-        public string GetEndpoint()
-        {
-            return endpoint;
-        }
-
-        public string GetName()
-        {
-            return info.GetName();
-        }
-
-        public string GetGameModes()
-        {
-            string result = "";
-            int N = info.GetGameModes().Length;
-            for (int i = 0; i < N; i++)
-            {
-                result += info.GetGameModes()[i];
-                if(i != N - 1)
-                {
-                    result += ",";
-                }
-            }
-            return result;
+            info = serverInfo;
         }
     }
 }

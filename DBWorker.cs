@@ -43,7 +43,7 @@ namespace Kontur.GameStats.Server
                 string name = (string)reader["name"];
                 string gamemodes = (string)reader["gamemodes"];
 
-                servers.Add(new EndpointInfo(endpoint, name, gamemodes));
+                servers.Add(new EndpointInfo(endpoint, new EndpointInfo.ServerInfo(name, gamemodes.Split(','))));
             }
 
             return servers.ToArray();
@@ -57,7 +57,7 @@ namespace Kontur.GameStats.Server
             SQLiteDataReader reader = sqlCommand.ExecuteReader();
             while(reader.Read())
             {
-                serverInfo = new EndpointInfo.ServerInfo(reader.GetString(0), reader.GetString(1);
+                serverInfo = new EndpointInfo.ServerInfo(reader.GetString(0), reader.GetString(1).Split(','));
                 break;
             }
 
@@ -69,9 +69,9 @@ namespace Kontur.GameStats.Server
             bool result = false;
 
             sqlCommand.CommandText = String.Format(@"INSERT OR REPLACE INTO servers VALUES (""{0}"", ""{1}"", ""{2}"")",
-                server.GetEndpoint(),
-                server.GetName(),
-                server.GetGameModes()
+                server.endpoint,
+                server.info.name,
+                server.info.GetGameModesString()
                 );
 
             int rows = -1;
