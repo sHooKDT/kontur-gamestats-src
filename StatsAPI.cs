@@ -16,12 +16,16 @@ namespace Kontur.GameStats.Server
 		    }
 		}
 
-		public void GetServerInfo (HttpListenerContext context)
-		{
-			throw new NotImplementedException ();
-		}
+	    public void GetServerInfo(HttpListenerContext context)
+	    {
+	        context.Response.StatusCode = (int) HttpStatusCode.Accepted;
+	        using (var writer = new System.IO.StreamWriter(context.Response.OutputStream))
+	        {
+	            writer.WriteLine("example response");
+	        }
+	    }
 
-		public void PutServerInfo (HttpListenerContext context)
+	    public void PutServerInfo (HttpListenerContext context)
 		{
 		    db.PutServerInfo("example", "example", "example");
 

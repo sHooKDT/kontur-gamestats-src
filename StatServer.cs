@@ -94,7 +94,7 @@ namespace Kontur.GameStats.Server
             var request = listenerContext.Request;
             var parts = request.RawUrl.Split('/');
 
-            System.Console.WriteLine("REQ: {0} {1}", request.RawUrl, request.HttpMethod);
+            System.Console.WriteLine("{1} {0}", request.RawUrl, request.HttpMethod);
 
             if (parts[1] == "servers")
             {

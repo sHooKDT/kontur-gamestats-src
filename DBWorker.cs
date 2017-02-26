@@ -31,7 +31,7 @@ namespace Kontur.GameStats.Server
 	    public int PutServerInfo(string endpoint, string name, string gamemodes)
 	    {
 	        sqlCommand.CommandText =
-	            $@"INSERT OR REPLACE INTO servers VALUES ({endpoint}, {name}, {gamemodes})";
+	            $@"INSERT OR REPLACE INTO servers VALUES (""{endpoint}"", ""{name}"", ""{gamemodes}"")";
 
 	        return sqlCommand.ExecuteNonQuery();
 	    }
