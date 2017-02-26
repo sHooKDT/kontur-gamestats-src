@@ -93,6 +93,11 @@ namespace Kontur.GameStats.Server
         {
             throw new NotImplementedException();
         }
+
+        public bool PutServerMatch(string endpoint, DateTime timestamp, MatchInfo match)
+        {
+            throw new NotImplementedException();
+        }
     }
 }
 

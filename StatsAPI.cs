@@ -78,7 +78,7 @@ namespace Kontur.GameStats.Server
             MatchInfo matchInfo =
                 JsonConvert.DeserializeObject<MatchInfo>(inpStream.ReadToEnd());
 
-            db.PutServerMatch(/* endpoint, timestamp,*/matchInfo);
+            db.PutServerMatch("", new DateTime(), matchInfo);
         }
 
         public void GetServerStats(HttpListenerContext context)
