@@ -1,4 +1,5 @@
-﻿using Kontur.GameStats.Server.Datatypes;
+﻿using System;
+using Kontur.GameStats.Server.Datatypes;
 
 namespace Kontur.GameStats.Server
 {
@@ -17,7 +18,7 @@ namespace Kontur.GameStats.Server
         MatchInfo GetServerMatch(string endpoint, string timestamp);
 
         // Отправка данных о матче
-        bool PutServerMatch(MatchInfo match);
+        bool PutServerMatch(string endpoint, DateTime timestamp, MatchInfo match);
 
         // TODO: написать нужные типы данных
         /*

@@ -13,7 +13,7 @@ namespace Kontur.GameStats.Server
 
 		public DbWorker ()
 		{
-            if (System.IO.File.Exists(DbName))
+            if (!System.IO.File.Exists(DbName))
                 SQLiteConnection.CreateFile(DbName);
 
             sqlConnection = new SQLiteConnection("Data Source= " + DbName + ";Version=3;");

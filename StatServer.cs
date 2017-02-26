@@ -2,7 +2,7 @@
 
 namespace Kontur.GameStats.Server
 {
-    internal class StatServer : System.IDisposable
+    public class StatServer : System.IDisposable
     {
         public StatServer()
         {

@@ -18,17 +18,18 @@
 
             public string GetGameModesString()
             {
-                string result = "";
-                int N = gameModes.Length;
-                for (int i = 0; i < N; i++)
-                {
-                    result += gameModes[i];
-                    if (i != N - 1)
-                    {
-                        result += ",";
-                    }
-                }
-                return result;
+                //string result = "";
+                //int N = gameModes.Length;
+                //for (int i = 0; i < N; i++)
+                //{
+                //    result += gameModes[i];
+                //    if (i != N - 1)
+                //    {
+                //        result += ",";
+                //    }
+                //}
+                //return result;
+                return string.Join(",", gameModes);
             }
         }
 
