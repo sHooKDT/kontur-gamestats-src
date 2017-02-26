@@ -1,6 +1,6 @@
 ﻿namespace Kontur.GameStats.Server.Datatypes
 {
-    internal class MatchInfo
+    public class MatchInfo
     {
         public string map;
         public string gameMode;

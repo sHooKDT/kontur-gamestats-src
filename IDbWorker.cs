@@ -2,7 +2,7 @@
 
 namespace Kontur.GameStats.Server
 {
-    interface IDbWorker
+    public interface IDbWorker
     {
         // Список всех серверов
         EndpointInfo[] GetServersInfo();

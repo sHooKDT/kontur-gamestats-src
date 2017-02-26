@@ -1,6 +1,6 @@
 ﻿namespace Kontur.GameStats.Server
 {
-    internal class EndpointInfo
+    public class EndpointInfo
     {
         public string endpoint;
         public ServerInfo info;

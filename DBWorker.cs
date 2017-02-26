@@ -1,8 +1,10 @@
-﻿using System.Data.SQLite;
+﻿using System;
+using System.Data.SQLite;
+using Kontur.GameStats.Server.Datatypes;
 
 namespace Kontur.GameStats.Server
 {
-	public class DbWorker
+	public class DbWorker : IDbWorker
 	{
 	    private readonly SQLiteConnection sqlConnection;
 	    private readonly SQLiteCommand sqlCommand;
@@ -35,6 +37,38 @@ namespace Kontur.GameStats.Server
 
 	        return sqlCommand.ExecuteNonQuery();
 	    }
-	}
+
+        public EndpointInfo[] GetServersInfo()
+        {
+            sqlCommand.CommandText = "SELECT * FROM server";
+            SQLiteDataReader reader = sqlCommand.ExecuteReader();
+            while(reader.Read())
+            {
+
+            }
+
+            throw new NotImplementedException();
+        }
+
+        public EndpointInfo.ServerInfo GetServerInfo(string endpoint)
+        {
+            throw new NotImplementedException();
+        }
+
+        public bool PutServerInfo(EndpointInfo server)
+        {
+            throw new NotImplementedException();
+        }
+
+        public MatchInfo GetServerMatch(string endpoint, string timestamp)
+        {
+            throw new NotImplementedException();
+        }
+
+        public bool PutServerMatch(MatchInfo match)
+        {
+            throw new NotImplementedException();
+        }
+    }
 }
 
