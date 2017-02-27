@@ -1,19 +1,14 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Data.Entity.Core.Objects;
 using System.Data.SQLite;
-using System.Diagnostics.Eventing.Reader;
 using System.Globalization;
 using System.Linq;
-using System.Threading.Tasks;
 using Kontur.GameStats.Server.Datatypes;
-using Newtonsoft.Json.Linq;
 
 namespace Kontur.GameStats.Server
 {
-    public class DbWorker : IDbWorker
+    public partial class DbWorker : IDbWorker
     {
-        private readonly SQLiteConnection sqlConnection;
         private readonly SQLiteCommand sqlCommand;
         private const string DbName = "GameStats.sqlite3";
 
@@ -22,7 +17,7 @@ namespace Kontur.GameStats.Server
             if (!System.IO.File.Exists(DbName))
                 SQLiteConnection.CreateFile(DbName);
 
-            sqlConnection = new SQLiteConnection("Data Source= " + DbName + ";Version=3;");
+            var sqlConnection = new SQLiteConnection("Data Source= " + DbName + ";Version=3;");
             sqlConnection.Open();
 
             sqlCommand = new SQLiteCommand(sqlConnection);
@@ -48,7 +43,7 @@ namespace Kontur.GameStats.Server
 
         public EndpointInfo[] GetServersInfo()
         {
-            List<EndpointInfo> servers = new List<EndpointInfo>();
+            var servers = new List<EndpointInfo>();
 
             sqlCommand.CommandText = "SELECT * FROM servers;";
             this.PrintSqlQuery();
@@ -60,6 +55,7 @@ namespace Kontur.GameStats.Server
                     string name = (string) reader["name"];
                     string gamemodes = (string) reader["gamemodes"];
 
+                    // TODO: Simplify with yield return
                     servers.Add(new EndpointInfo(endpoint, new EndpointInfo.ServerInfo(name, gamemodes.Split(','))));
                 }
 
@@ -101,7 +97,7 @@ namespace Kontur.GameStats.Server
                 $"SELECT * FROM matches WHERE endpoint = \"{endpoint}\" AND timestamp = {unixTimestamp};";
             this.PrintSqlQuery();
 
-            var matchInfo = new MatchInfo();
+            MatchInfo matchInfo;
             int matchId = 0;
 
             using (SQLiteDataReader reader = sqlCommand.ExecuteReader())
@@ -151,14 +147,14 @@ namespace Kontur.GameStats.Server
 
         public bool PutServerMatch(string endpoint, DateTime timestamp, MatchInfo match)
         {
-            // TODO: Dont' add not unique matches
+            // TODO: Don't add not unique matches
             double unixTimestamp = timestamp.Subtract(new DateTime(1970, 1, 1)).TotalSeconds;
 
             sqlCommand.CommandText =
                 "INSERT INTO matches (endpoint, timestamp, map, gamemode, frag_limit, time_limit, time_elapsed) " +
                 $"VALUES (\"{endpoint}\", {unixTimestamp}, \"{match.map}\", \"{match.gameMode}\", {match.fragLimit}, {match.timeLimit}, {match.timeElapsed.ToString(CultureInfo.InvariantCulture)})";
 
-            var affectedRows = sqlCommand.ExecuteNonQuery();
+            int affectedRows = sqlCommand.ExecuteNonQuery();
 
             // TODO: Just do it another way
             sqlCommand.CommandText =
@@ -185,12 +181,40 @@ namespace Kontur.GameStats.Server
             return affectedRows > 0;
         }
 
+        public int GetOneInt (/*SQLiteCommand command,*/ string query, string param)
+        {
+            sqlCommand.CommandText = string.Format(query, param);
+            using (SQLiteDataReader reader = sqlCommand.ExecuteReader())
+            {
+                if (reader.Read()) return reader.GetInt32(0);
+            }
+            throw new Exception("No data");
+        }
+
+        public double GetOneDouble(/*SQLiteCommand command,*/ string query, string param)
+        {
+            sqlCommand.CommandText = string.Format(query, param);
+            using (SQLiteDataReader reader = sqlCommand.ExecuteReader())
+            {
+                if (reader.Read()) return reader.GetDouble(0);
+            }
+            throw new Exception("No data");
+        }
+
+        public IEnumerable<string> GetStringArray(/*SQLiteCommand command,*/ string query, string param)
+        {
+            sqlCommand.CommandText = string.Format(query, param);
+            using (SQLiteDataReader reader = sqlCommand.ExecuteReader())
+            {
+                while (reader.Read()) yield return reader.GetString(0);
+            }
+        }
+
         private void PrintSqlQuery()
         {
             Console.ForegroundColor = ConsoleColor.DarkCyan;
             Console.WriteLine(sqlCommand.CommandText);
             Console.ResetColor();
         }
-
     }
 }

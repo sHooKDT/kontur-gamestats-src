@@ -106,7 +106,15 @@ namespace Kontur.GameStats.Server
 
         public void GetServerStats(HttpListenerContext context)
         {
-            throw new NotImplementedException();
+            string stats = db.MakeServerStats(ExtractEndpoint(context.Request));
+
+            using (StreamWriter writer = new StreamWriter(context.Response.OutputStream))
+            {
+                writer.Write(stats);
+            }
+
+            context.Response.StatusCode = (int) HttpStatusCode.OK;
+            context.Response.Close();
         }
 
         public void GetPlayerStats(HttpListenerContext context)

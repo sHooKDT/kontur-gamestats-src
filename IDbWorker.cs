@@ -29,8 +29,8 @@ namespace Kontur.GameStats.Server
          * PopularServersReport
          */
 
-        // Статистика сервера
-        // ServerStats GetServerStats(string endpoint);
+        //Статистика сервера
+         string MakeServerStats(string endpoint);
 
         // Статистика игрока
         // PlayerStats GetPlayerStats(string name);
