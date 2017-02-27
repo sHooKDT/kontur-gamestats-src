@@ -1,18 +1,24 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Data.Entity.Core.Objects;
 using System.Data.SQLite;
+using System.Diagnostics.Eventing.Reader;
+using System.Globalization;
+using System.Linq;
+using System.Threading.Tasks;
 using Kontur.GameStats.Server.Datatypes;
+using Newtonsoft.Json.Linq;
 
 namespace Kontur.GameStats.Server
 {
-	public class DbWorker : IDbWorker
-	{
-	    private readonly SQLiteConnection sqlConnection;
-	    private readonly SQLiteCommand sqlCommand;
-	    private const string DbName = "GameStats.sqlite3";
+    public class DbWorker : IDbWorker
+    {
+        private readonly SQLiteConnection sqlConnection;
+        private readonly SQLiteCommand sqlCommand;
+        private const string DbName = "GameStats.sqlite3";
 
-		public DbWorker ()
-		{
+        public DbWorker()
+        {
             if (!System.IO.File.Exists(DbName))
                 SQLiteConnection.CreateFile(DbName);
 
@@ -21,38 +27,41 @@ namespace Kontur.GameStats.Server
 
             sqlCommand = new SQLiteCommand(sqlConnection);
 
-		    this.Init();
+            this.Init();
         }
 
         public void Init()
-	    {
-	        sqlCommand.CommandText =
-	            @"CREATE TABLE IF NOT EXISTS servers (endpoint TEXT PRIMARY KEY, name TEXT, gamemodes TEXT)";
-            sqlCommand.ExecuteNonQuery();
+        {
+            string[] tablesCreation = new[]
+            {
+                @"servers (endpoint TEXT PRIMARY KEY, name TEXT, gamemodes TEXT)",
+                @"matches (id INTEGER PRIMARY KEY, endpoint TEXT, timestamp INTEGER, map TEXT, gamemode TEXT, frag_limit INTEGER, time_limit INTEGER, time_elapsed REAL)",
+                @"scoreboard (match_id INTEGER, name TEXT, frags INTEGER, kills INTEGER, deaths INTEGER)"
+            };
 
-            sqlCommand.CommandText =
-                @"CREATE TABLE IF NOT EXISTS matches (id INTEGER PRIMARY KEY, endpoint TEXT, timestamp INTEGER, map TEXT, gamemode TEXT, frag_limit INTEGER, time_limit INTEGER, time_elapsed REAL)";
-            sqlCommand.ExecuteNonQuery();
-
-            sqlCommand.CommandText =
-                @"CREATE TABLE IF NOT EXISTS scoreboard (match_id INTEGER, name TEXT, frags INTEGER, kills INTEGER, deaths INTEGER)";
-            sqlCommand.ExecuteNonQuery();
+            foreach (string table in tablesCreation)
+            {
+                sqlCommand.CommandText = "CREATE TABLE IF NOT EXISTS " + table;
+                sqlCommand.ExecuteNonQuery();
+            }
         }
 
         public EndpointInfo[] GetServersInfo()
         {
             List<EndpointInfo> servers = new List<EndpointInfo>();
 
-            sqlCommand.CommandText = "SELECT * FROM servers";
-            SQLiteDataReader reader = sqlCommand.ExecuteReader();
-            while(reader.Read())
-            {
-                string endpoint = (string)reader["endpoint"];
-                string name = (string)reader["name"];
-                string gamemodes = (string)reader["gamemodes"];
+            sqlCommand.CommandText = "SELECT * FROM servers;";
+            this.PrintSqlQuery();
 
-                servers.Add(new EndpointInfo(endpoint, new EndpointInfo.ServerInfo(name, gamemodes.Split(','))));
-            }
+            using (SQLiteDataReader reader = sqlCommand.ExecuteReader())
+                while (reader.Read())
+                {
+                    string endpoint = (string) reader["endpoint"];
+                    string name = (string) reader["name"];
+                    string gamemodes = (string) reader["gamemodes"];
+
+                    servers.Add(new EndpointInfo(endpoint, new EndpointInfo.ServerInfo(name, gamemodes.Split(','))));
+                }
 
             return servers.ToArray();
         }
@@ -61,59 +70,127 @@ namespace Kontur.GameStats.Server
         {
             EndpointInfo.ServerInfo serverInfo = null;
 
-            sqlCommand.CommandText = String.Format("SELECT name, gamemodes FROM servers WHERE endpoint = {0}", endpoint);
-            SQLiteDataReader reader = sqlCommand.ExecuteReader();
-            while(reader.Read())
-            {
-                serverInfo = new EndpointInfo.ServerInfo(reader.GetString(0), reader.GetString(1).Split(','));
-                break;
-            }
+            sqlCommand.CommandText = $"SELECT name, gamemodes FROM servers WHERE endpoint = \"{endpoint}\";";
+            this.PrintSqlQuery();
+
+            using (SQLiteDataReader reader = sqlCommand.ExecuteReader())
+                while (reader.Read())
+                {
+                    serverInfo = new EndpointInfo.ServerInfo(reader.GetString(0), reader.GetString(1).Split(','));
+                    break;
+                }
 
             return serverInfo;
         }
 
         public bool PutServerInfo(EndpointInfo server)
         {
-            bool result = false;
+            sqlCommand.CommandText =
+                $"INSERT OR REPLACE INTO servers VALUES (\"{server.endpoint}\", \"{server.info.name}\", \"{server.info.GetGameModesString()}\");";
+            this.PrintSqlQuery();
 
-            sqlCommand.CommandText = String.Format(@"INSERT OR REPLACE INTO servers VALUES (""{0}"", ""{1}"", ""{2}"")",
-                server.endpoint,
-                server.info.name,
-                server.info.GetGameModesString()
-                );
-
-            int rows = -1;
-            rows = sqlCommand.ExecuteNonQuery();
-            if(rows >= 0)
-            {
-                result = true;
-            }
-
-            return result;
+            int affected = sqlCommand.ExecuteNonQuery();
+            return affected > 0;
         }
 
-        public MatchInfo GetServerMatch(string endpoint, string timestamp)
+        public MatchInfo GetServerMatch(string endpoint, DateTime timestamp)
         {
-            sqlCommand.CommandText = String.Format("SELECT * FROM matches WHERE endpoint = {0} AND timestamp = {1}", endpoint, timestamp);
-            SQLiteDataReader reader = sqlCommand.ExecuteReader();
-            while (reader.Read())
+            double unixTimestamp = timestamp.Subtract(new DateTime(1970, 1, 1)).TotalSeconds;
+
+            sqlCommand.CommandText =
+                $"SELECT * FROM matches WHERE endpoint = \"{endpoint}\" AND timestamp = {unixTimestamp};";
+            this.PrintSqlQuery();
+
+            var matchInfo = new MatchInfo();
+            int matchId = 0;
+
+            using (SQLiteDataReader reader = sqlCommand.ExecuteReader())
             {
-                int id = (int)reader["id"];
-                string _endpoint = (string)reader["endpoint"];
-                break;
+                if (reader.Read())
+                {
+                    matchId = (int) (long) reader["id"];
+
+                    matchInfo = new MatchInfo()
+                    {
+                        map = (string) reader["map"],
+                        gameMode = (string) reader["gamemode"],
+                        fragLimit = (int) (long) reader["frag_limit"],
+                        timeLimit = (int) (long) reader["time_limit"],
+                        timeElapsed = (double) reader["time_elapsed"]
+                    };
+                }
+                else
+                {
+                    return null;
+                }
             }
-            throw new NotImplementedException();
+
+            matchInfo.scoreboard = this.GetScoreboard(matchId).ToArray();
+
+            return matchInfo;
         }
 
-        public bool PutServerMatch(MatchInfo match)
+        public IEnumerable<MatchInfo.ScoreboardItem> GetScoreboard(int matchId)
         {
-            throw new NotImplementedException();
+            sqlCommand.CommandText = $"SELECT * FROM scoreboard WHERE match_id = {matchId}";
+            this.PrintSqlQuery();
+            using (SQLiteDataReader reader = sqlCommand.ExecuteReader())
+            {
+                while (reader.Read())
+                {
+                    yield return new MatchInfo.ScoreboardItem()
+                    {
+                        name = (string) reader["name"],
+                        deaths = (int) (long) reader["deaths"],
+                        frags = (int) (long) reader["frags"],
+                        kills = (int) (long) reader["kills"]
+                    };
+                }
+            }
         }
 
         public bool PutServerMatch(string endpoint, DateTime timestamp, MatchInfo match)
         {
-            throw new NotImplementedException();
+            // TODO: Dont' add not unique matches
+            double unixTimestamp = timestamp.Subtract(new DateTime(1970, 1, 1)).TotalSeconds;
+
+            sqlCommand.CommandText =
+                "INSERT INTO matches (endpoint, timestamp, map, gamemode, frag_limit, time_limit, time_elapsed) " +
+                $"VALUES (\"{endpoint}\", {unixTimestamp}, \"{match.map}\", \"{match.gameMode}\", {match.fragLimit}, {match.timeLimit}, {match.timeElapsed.ToString(CultureInfo.InvariantCulture)})";
+
+            var affectedRows = sqlCommand.ExecuteNonQuery();
+
+            // TODO: Just do it another way
+            sqlCommand.CommandText =
+                $"SELECT id FROM matches WHERE endpoint = \"{endpoint}\" AND timestamp = {unixTimestamp};";
+            this.PrintSqlQuery();
+            int addedMatchId = 0;
+
+            using (SQLiteDataReader reader = sqlCommand.ExecuteReader())
+            {
+                if (reader.Read()) addedMatchId = reader.GetInt32(0);
+                else return false;
+            }
+
+            if (affectedRows != 0)
+                foreach (MatchInfo.ScoreboardItem line in match.scoreboard)
+                {
+                    sqlCommand.CommandText =
+                        $"INSERT INTO scoreboard (match_id, name, frags, kills, deaths) VALUES ({addedMatchId}, \"{line.name}\", {line.frags}, {line.kills}, {line.deaths});";
+                    this.PrintSqlQuery();
+                    affectedRows += sqlCommand.ExecuteNonQuery();
+                }
+
+            // If more than null rows affected return true (success)
+            return affectedRows > 0;
         }
+
+        private void PrintSqlQuery()
+        {
+            Console.ForegroundColor = ConsoleColor.DarkCyan;
+            Console.WriteLine(sqlCommand.CommandText);
+            Console.ResetColor();
+        }
+
     }
 }
-

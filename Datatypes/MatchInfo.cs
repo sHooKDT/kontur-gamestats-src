@@ -16,11 +16,5 @@
             public int kills;
             public int deaths;
         }
-
-        public MatchInfo()
-        {
-
-        }
-
     }
 }

@@ -15,7 +15,7 @@ namespace Kontur.GameStats.Server
         bool PutServerInfo(EndpointInfo server);
 
         // Получение матча по адресу сервера и времени
-        MatchInfo GetServerMatch(string endpoint, string timestamp);
+        MatchInfo GetServerMatch(string endpoint, DateTime timestamp);
 
         // Отправка данных о матче
         bool PutServerMatch(string endpoint, DateTime timestamp, MatchInfo match);

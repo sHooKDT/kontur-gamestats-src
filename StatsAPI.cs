@@ -12,14 +12,17 @@ namespace Kontur.GameStats.Server
 
         public void GetServersInfo(HttpListenerContext context)
         {
+
             EndpointInfo[] servers = db.GetServersInfo();
             string serversJson = JsonConvert.SerializeObject(servers);
 
-            context.Response.StatusCode = (int) HttpStatusCode.Accepted;
             using (var writer = new System.IO.StreamWriter(context.Response.OutputStream))
             {
                 writer.WriteLine(serversJson);
             }
+            context.Response.StatusCode = (int)HttpStatusCode.OK;
+
+            context.Response.Close();
         }
 
         public void GetServerInfo(HttpListenerContext context)
@@ -29,17 +32,20 @@ namespace Kontur.GameStats.Server
 
             if (serverInfo == null)
             {
-                context.Response.StatusCode = (int) HttpStatusCode.BadRequest;
+                context.Response.StatusCode = (int) HttpStatusCode.NotFound;
+                context.Response.Close();
                 return;
             }
 
             string serverInfoJson = JsonConvert.SerializeObject(serverInfo);
 
-            context.Response.StatusCode = (int) HttpStatusCode.OK;
             using (var writer = new System.IO.StreamWriter(context.Response.OutputStream))
             {
                 writer.Write(serverInfoJson);
             }
+
+            context.Response.StatusCode = (int)HttpStatusCode.OK;
+            context.Response.Close();
         }
 
         public void PutServerInfo(HttpListenerContext context)
@@ -59,9 +65,17 @@ namespace Kontur.GameStats.Server
         public void GetServerMatch(HttpListenerContext context)
         {
             string endpoint = ExtractEndpoint(context.Request);
-            string timestamp = ExtractTimestamp(context.Request);
+            DateTime timestamp = ExtractTimestamp(context.Request);
 
             MatchInfo matchInfo = db.GetServerMatch(endpoint, timestamp);
+
+            if (matchInfo == null)
+            {
+                context.Response.StatusCode = (int) HttpStatusCode.NotFound;
+                context.Response.Close();
+                return;
+            } 
+
             string matchInfoJson = JsonConvert.SerializeObject(matchInfo);
 
             using (var writer = new StreamWriter(context.Response.OutputStream))
@@ -78,14 +92,15 @@ namespace Kontur.GameStats.Server
             var inpStream = new StreamReader(context.Request.InputStream);
 
             string endpoint = ExtractEndpoint(context.Request);
-            DateTime timestamp = DateTimeOffset.Parse(ExtractTimestamp(context.Request)).UtcDateTime;
+            DateTime timestamp = ExtractTimestamp(context.Request);
 
             MatchInfo matchInfo =
                 JsonConvert.DeserializeObject<MatchInfo>(inpStream.ReadToEnd());
 
-            db.PutServerMatch(endpoint, timestamp, matchInfo);
+            if (db.PutServerMatch(endpoint, timestamp, matchInfo) == true)
+                context.Response.StatusCode = (int) HttpStatusCode.OK;
+            else context.Response.StatusCode = (int) HttpStatusCode.BadRequest;
 
-            context.Response.StatusCode = (int)HttpStatusCode.OK;
             context.Response.Close();
         }
 
@@ -129,6 +144,8 @@ namespace Kontur.GameStats.Server
             {
                 writer.WriteLine("400 - Incorrect request");
             }
+
+            context.Response.Close();
         }
 
         private static string ExtractEndpoint(HttpListenerRequest req)
@@ -136,9 +153,9 @@ namespace Kontur.GameStats.Server
             return req.RawUrl.Split('/')[2];
         }
 
-        private static string ExtractTimestamp(HttpListenerRequest req)
+        private static DateTime ExtractTimestamp(HttpListenerRequest req)
         {
-            return req.RawUrl.Split('/')[4];
+            return DateTimeOffset.Parse(req.RawUrl.Split('/')[4]).UtcDateTime;
         }
 
         private static int ExtractCount(HttpListenerRequest req)

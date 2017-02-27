@@ -1,12 +1,15 @@
-﻿using System.Threading.Tasks;
+﻿using System;
+using System.Net;
+using System.Net.Http;
+using System.Threading;
 
 namespace Kontur.GameStats.Server
 {
-    public class StatServer : System.IDisposable
+    public class StatServer : IDisposable
     {
         public StatServer()
         {
-            listener = new System.Net.HttpListener();
+            listener = new HttpListener();
 
             // TODO: Database initialisation
             statsApi = new StatsApi(new DbWorker());
@@ -22,10 +25,10 @@ namespace Kontur.GameStats.Server
                     listener.Prefixes.Add(prefix);
                     listener.Start();
 
-                    listenerThread = new System.Threading.Thread(Listen)
+                    listenerThread = new Thread(Listen)
                     {
                         IsBackground = true,
-                        Priority = System.Threading.ThreadPriority.Highest
+                        Priority = ThreadPriority.Highest
                     };
                     listenerThread.Start();
 
@@ -71,37 +74,42 @@ namespace Kontur.GameStats.Server
                     if (listener.IsListening)
                     {
                         var context = listener.GetContext();
-                        Task.Run(() => this.HandleContext(context));
+                        //Task.Run(() => this.HandleContext(context));
+                        this.HandleContext(context);
                     }
                     else
-                        System.Threading.Thread.Sleep(0);
+                        Thread.Sleep(0);
                 }
-                catch (System.Threading.ThreadAbortException)
+                catch (ThreadAbortException)
                 {
                     return;
                 }
-                catch (System.Exception error)
+                catch (Exception error)
                 {
-                    System.Console.WriteLine(error.StackTrace);
+                    Console.ForegroundColor = ConsoleColor.Red;
+                    Console.WriteLine($"Source: {error.Source}\nException: {error.Message}\nStack Trace: {error.StackTrace}");
+                    Console.ResetColor();
                 }
             }
         }
 
-        private void HandleContext(System.Net.HttpListenerContext listenerContext)
+        private void HandleContext(HttpListenerContext listenerContext)
         {
             // TODO: implement request handling
 
             var request = listenerContext.Request;
             var parts = request.RawUrl.Split('/');
 
-            System.Console.WriteLine("{1} {0}", request.RawUrl, request.HttpMethod);
+            Console.ForegroundColor = ConsoleColor.DarkGreen;
+            Console.WriteLine("{1} {0}", request.RawUrl, request.HttpMethod);
+            Console.ResetColor();
 
             if (parts[1] == "servers")
             {
                 if (parts[2] == "info")
                 {
                     // /servers/info GET
-                    if (request.HttpMethod == System.Net.Http.HttpMethod.Get.Method)
+                    if (request.HttpMethod == HttpMethod.Get.Method)
                         statsApi.GetServersInfo(listenerContext);
                     // If method is not get
                     else statsApi.HandleIncorrect(listenerContext);
@@ -112,17 +120,17 @@ namespace Kontur.GameStats.Server
                     {
                         case "info":
                             // /servers/<endpoint>/info PUT, GET
-                            if (request.HttpMethod == System.Net.Http.HttpMethod.Get.Method)
+                            if (request.HttpMethod == HttpMethod.Get.Method)
                                 statsApi.GetServerInfo(listenerContext);
-                            else if (request.HttpMethod == System.Net.Http.HttpMethod.Put.Method)
+                            else if (request.HttpMethod == HttpMethod.Put.Method)
                                 statsApi.PutServerInfo(listenerContext);
                             else statsApi.HandleIncorrect(listenerContext);
                             break;
                         case "matches":
                             // /servers/<endpoint>/matches/<timestamp> PUT, GET
-                            if (request.HttpMethod == System.Net.Http.HttpMethod.Get.Method)
+                            if (request.HttpMethod == HttpMethod.Get.Method)
                                 statsApi.GetServerMatch(listenerContext);
-                            else if (request.HttpMethod == System.Net.Http.HttpMethod.Put.Method)
+                            else if (request.HttpMethod == HttpMethod.Put.Method)
                                 statsApi.PutServerMatch(listenerContext);
                             else statsApi.HandleIncorrect(listenerContext);
                             break;
@@ -136,7 +144,7 @@ namespace Kontur.GameStats.Server
                     }
                 }
             }
-            else if (parts[1] == "reports" && request.HttpMethod == System.Net.Http.HttpMethod.Get.Method)
+            else if (parts[1] == "reports" && request.HttpMethod == HttpMethod.Get.Method)
             {
                 switch (parts[2])
                 {
@@ -154,7 +162,7 @@ namespace Kontur.GameStats.Server
                         break;
                 }
             }
-            else if (parts[1] == "players" && parts[3] == "stats" && request.HttpMethod == System.Net.Http.HttpMethod.Get.Method)
+            else if (parts[1] == "players" && parts[3] == "stats" && request.HttpMethod == HttpMethod.Get.Method)
             {
                 statsApi.GetPlayerStats(listenerContext);
             }
@@ -164,11 +172,11 @@ namespace Kontur.GameStats.Server
             }
         }
 
-        private readonly System.Net.HttpListener listener;
+        private readonly HttpListener listener;
 
         private readonly StatsApi statsApi;
 
-        private System.Threading.Thread listenerThread;
+        private Thread listenerThread;
         private bool disposed;
         private volatile bool isRunning;
     }
