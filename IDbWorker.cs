@@ -20,20 +20,11 @@ namespace Kontur.GameStats.Server
         // Отправка данных о матче
         bool PutServerMatch(string endpoint, DateTime timestamp, MatchInfo match);
 
-        // TODO: написать нужные типы данных
-        /*
-         * ServerStats
-         * PlayerStats
-         * RecentMatchesReport
-         * BestPlayersReport
-         * PopularServersReport
-         */
-
         //Статистика сервера
-         string MakeServerStats(string endpoint);
+        string MakeServerStats(string endpoint);
 
         // Статистика игрока
-        // PlayerStats GetPlayerStats(string name);
+        string MakePlayerStats(string name);
 
         // Reports
 

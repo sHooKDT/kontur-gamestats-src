@@ -11,7 +11,6 @@ namespace Kontur.GameStats.Server
         {
             listener = new HttpListener();
 
-            // TODO: Database initialisation
             statsApi = new StatsApi(new DbWorker());
         }
 
@@ -95,8 +94,6 @@ namespace Kontur.GameStats.Server
 
         private void HandleContext(HttpListenerContext listenerContext)
         {
-            // TODO: implement request handling
-
             var request = listenerContext.Request;
             var parts = request.RawUrl.Split('/');
 

@@ -119,7 +119,15 @@ namespace Kontur.GameStats.Server
 
         public void GetPlayerStats(HttpListenerContext context)
         {
-            throw new NotImplementedException();
+            string stats = db.MakePlayerStats(ExtractEndpoint(context.Request));
+
+            using (StreamWriter writer = new StreamWriter(context.Response.OutputStream))
+            {
+                writer.Write(stats);
+            }
+
+            context.Response.StatusCode = (int)HttpStatusCode.OK;
+            context.Response.Close();
         }
 
         public void GetRecentMatchesReport(HttpListenerContext context)
