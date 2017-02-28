@@ -68,35 +68,40 @@ namespace Kontur.GameStats.Server
         {
             while (true)
             {
-                try
+                if (listener.IsListening)
                 {
-                    if (listener.IsListening)
+                    var context = listener.GetContext();
+                    // TODO: Make exception handling another way
+                    try
                     {
-                        var context = listener.GetContext();
-                        // TODO: Make exception handling another way
-                        try
-                        {
-                            //Task.Run(() => this.HandleContext(context));
-                            this.HandleContext(context);
-                        }
-                        catch (ArgumentException)
-                        {
-                            statsApi.HandleIncorrect(context);
-                        }
+                        //Task.Run(() => this.HandleContext(context));
+                        this.HandleContext(context);
                     }
-                    else
-                        Thread.Sleep(0);
+                    catch (ArgumentException)
+                    {
+                        Console.ForegroundColor = ConsoleColor.Magenta;
+                        Console.WriteLine("Incorrect request");
+                        Console.ResetColor();
+
+                        statsApi.HandleIncorrect(context);
+                    }
+
+                    catch (ThreadAbortException)
+                    {
+                        return;
+                    }
+                    catch (Exception error)
+                    {
+                        statsApi.HandleIncorrect(context);
+
+                        Console.ForegroundColor = ConsoleColor.Red;
+                        Console.WriteLine(
+                            $"Source: {error.Source}\nException: {error.Message}\nStack Trace: {error.StackTrace}");
+                        Console.ResetColor();
+                    }
                 }
-                catch (ThreadAbortException)
-                {
-                    return;
-                }
-                catch (Exception error)
-                {
-                    Console.ForegroundColor = ConsoleColor.Red;
-                    Console.WriteLine($"Source: {error.Source}\nException: {error.Message}\nStack Trace: {error.StackTrace}");
-                    Console.ResetColor();
-                }
+                else
+                    Thread.Sleep(0);
             }
         }
 
