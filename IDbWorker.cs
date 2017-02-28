@@ -28,10 +28,10 @@ namespace Kontur.GameStats.Server
 
         // Reports
 
-        //RecentMatchesReport GetRecentMatchesReport(string endpoint, int count);
+        string MakeRecentMatchesReport(int count);
 
-        //BestPlayersReport GetBestPlayersReport(string endpoint, int count);
+        string MakeBestPlayersReport(int count);
 
-        //PopularServersReport GetPopularServersReport(string endpoint, int count);
+        string MakePopularServersReport(int count);
     }
 }

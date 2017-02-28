@@ -12,17 +12,10 @@ namespace Kontur.GameStats.Server
 
         public void GetServersInfo(HttpListenerContext context)
         {
-
             EndpointInfo[] servers = db.GetServersInfo();
             string serversJson = JsonConvert.SerializeObject(servers);
 
-            using (var writer = new System.IO.StreamWriter(context.Response.OutputStream))
-            {
-                writer.WriteLine(serversJson);
-            }
-            context.Response.StatusCode = (int)HttpStatusCode.OK;
-
-            context.Response.Close();
+            this.SendResponse(context.Response, serversJson, HttpStatusCode.OK);
         }
 
         public void GetServerInfo(HttpListenerContext context)
@@ -32,20 +25,13 @@ namespace Kontur.GameStats.Server
 
             if (serverInfo == null)
             {
-                context.Response.StatusCode = (int) HttpStatusCode.NotFound;
-                context.Response.Close();
+                this.SendResponse(context.Response, "", HttpStatusCode.NotFound);
                 return;
             }
 
             string serverInfoJson = JsonConvert.SerializeObject(serverInfo);
 
-            using (var writer = new System.IO.StreamWriter(context.Response.OutputStream))
-            {
-                writer.Write(serverInfoJson);
-            }
-
-            context.Response.StatusCode = (int)HttpStatusCode.OK;
-            context.Response.Close();
+            this.SendResponse(context.Response, serverInfoJson, HttpStatusCode.OK);
         }
 
         public void PutServerInfo(HttpListenerContext context)
@@ -58,8 +44,7 @@ namespace Kontur.GameStats.Server
 
             db.PutServerInfo(new EndpointInfo(endPoint, serverInfo));
 
-            context.Response.StatusCode = (int) HttpStatusCode.OK;
-            context.Response.Close();
+            this.SendResponse(context.Response, "", HttpStatusCode.OK);
         }
 
         public void GetServerMatch(HttpListenerContext context)
@@ -71,20 +56,13 @@ namespace Kontur.GameStats.Server
 
             if (matchInfo == null)
             {
-                context.Response.StatusCode = (int) HttpStatusCode.NotFound;
-                context.Response.Close();
+                this.SendResponse(context.Response, "", HttpStatusCode.NotFound);
                 return;
-            } 
+            }
 
             string matchInfoJson = JsonConvert.SerializeObject(matchInfo);
 
-            using (var writer = new StreamWriter(context.Response.OutputStream))
-            {
-                writer.Write(matchInfoJson);
-            }
-
-            context.Response.StatusCode = (int)HttpStatusCode.OK;
-            context.Response.Close();
+            this.SendResponse(context.Response, matchInfoJson, HttpStatusCode.OK);
         }
 
         public void PutServerMatch(HttpListenerContext context)
@@ -97,58 +75,58 @@ namespace Kontur.GameStats.Server
             MatchInfo matchInfo =
                 JsonConvert.DeserializeObject<MatchInfo>(inpStream.ReadToEnd());
 
-            if (db.PutServerMatch(endpoint, timestamp, matchInfo) == true)
-                context.Response.StatusCode = (int) HttpStatusCode.OK;
-            else context.Response.StatusCode = (int) HttpStatusCode.BadRequest;
-
-            context.Response.Close();
+            this.SendResponse(context.Response, "",
+                db.PutServerMatch(endpoint, timestamp, matchInfo) ? HttpStatusCode.OK : HttpStatusCode.BadRequest);
         }
 
         public void GetServerStats(HttpListenerContext context)
         {
             string stats = db.MakeServerStats(ExtractEndpoint(context.Request));
 
-            using (StreamWriter writer = new StreamWriter(context.Response.OutputStream))
-            {
-                writer.Write(stats);
-            }
-
-            context.Response.StatusCode = (int) HttpStatusCode.OK;
-            context.Response.Close();
+            this.SendResponse(context.Response, stats, HttpStatusCode.OK);
         }
 
         public void GetPlayerStats(HttpListenerContext context)
         {
             string stats = db.MakePlayerStats(ExtractEndpoint(context.Request));
 
-            using (StreamWriter writer = new StreamWriter(context.Response.OutputStream))
-            {
-                writer.Write(stats);
-            }
-
-            context.Response.StatusCode = (int)HttpStatusCode.OK;
-            context.Response.Close();
+            this.SendResponse(context.Response, stats, HttpStatusCode.OK);
         }
 
         public void GetRecentMatchesReport(HttpListenerContext context)
         {
-            throw new NotImplementedException();
+            string report = db.MakeRecentMatchesReport(ExtractCount(context.Request));
+
+            this.SendResponse(context.Response, report, HttpStatusCode.OK);
         }
 
         public void GetBestPlayersReport(HttpListenerContext context)
         {
-            throw new NotImplementedException();
+            string report = db.MakeBestPlayersReport(ExtractCount(context.Request));
+
+            this.SendResponse(context.Response, report, HttpStatusCode.OK);
         }
 
         public void GetPopularServersReport(HttpListenerContext context)
         {
-            throw new NotImplementedException();
+            string report = db.MakePopularServersReport(ExtractCount(context.Request));
+
+            this.SendResponse(context.Response, report, HttpStatusCode.OK);
+        }
+
+        public void SendResponse(HttpListenerResponse response, string body, HttpStatusCode code)
+        {
+            using (var writer = new StreamWriter(response.OutputStream))
+            {
+                writer.Write(body);
+            }
+
+            response.StatusCode = (int) code;
+            response.Close();
         }
 
         public void HandleIncorrect(HttpListenerContext context)
         {
-            context.Response.StatusCode = (int) HttpStatusCode.BadRequest;
-
             var parts = context.Request.RawUrl.Split('/');
 
             Console.WriteLine("Incorrect \n" +
@@ -156,12 +134,7 @@ namespace Kontur.GameStats.Server
                               $"2: {parts[2]} \n" +
                               $"3: {parts[3] ?? "null"}");
 
-            using (var writer = new System.IO.StreamWriter(context.Response.OutputStream))
-            {
-                writer.WriteLine("400 - Incorrect request");
-            }
-
-            context.Response.Close();
+            this.SendResponse(context.Response, "Incorrect", HttpStatusCode.BadRequest);
         }
 
         private static string ExtractEndpoint(HttpListenerRequest req)
@@ -178,10 +151,10 @@ namespace Kontur.GameStats.Server
         {
             string[] spl = req.RawUrl.Split('/');
             // If count isn't set, default value = 5
-            if (spl.Length < 3) return 5;
+            if (spl.Length < 4 || string.IsNullOrEmpty(spl[3])) return 5;
 
             int count = int.Parse(spl[3]);
-            
+
             // 50, no more
             if (count >= 50) return 50;
             // 0, no less

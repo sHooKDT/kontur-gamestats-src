@@ -1,14 +1,15 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Data.SqlClient;
+using System.Data.SQLite;
 using System.Linq;
+using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
 namespace Kontur.GameStats.Server
 {
     public partial class DbWorker
     {
-        public string MakeServerStats(string endpoint)
+        public string MakeServerStats (string endpoint)
         {
             var statsRequests = new Dictionary<string, string>()
             {
@@ -55,9 +56,9 @@ namespace Kontur.GameStats.Server
             return stats.ToString();
         }
 
-        public string MakePlayerStats(string name)
+        public string MakePlayerStats (string name)
         {
-            var statsRequests = new Dictionary<string, string>()
+            var queries = new Dictionary<string, string>()
             {
                 {"totalMatchesPlayed", "SELECT count(*) FROM scoreboard WHERE name = \"{0}\" COLLATE NOCASE"},
                 {
@@ -99,21 +100,113 @@ namespace Kontur.GameStats.Server
 
             var stats = new JObject
             {
-                {"totalMatchesPlayed", this.GetOneInt(statsRequests["totalMatchesPlayed"], name)},
-                {"totalMatchesWon", this.GetOneInt(statsRequests["totalMatchesWon"], name)},
-                {"favouriteServer", this.GetStringArray(statsRequests["favouriteServer"], name).ToArray()[0]},
-                {"uniqueServers", this.GetOneInt(statsRequests["uniqueServers"], name)},
-                {"favouriteGameMode", this.GetStringArray(statsRequests["favouriteGameMode"], name).ToArray()[0]},
-                {"maximumMatchesPerDay", this.GetOneInt(statsRequests["maximumMatchesPerDay"], name)},
-                {"averageMatchesPerDay", this.GetOneDouble(statsRequests["averageMatchesPerDay"], name)},
+                {"totalMatchesPlayed", this.GetOneInt(queries["totalMatchesPlayed"], name)},
+                {"totalMatchesWon", this.GetOneInt(queries["totalMatchesWon"], name)},
+                {"favouriteServer", this.GetStringArray(queries["favouriteServer"], name).ToArray()[0]},
+                {"uniqueServers", this.GetOneInt(queries["uniqueServers"], name)},
+                {"favouriteGameMode", this.GetStringArray(queries["favouriteGameMode"], name).ToArray()[0]},
+                {"maximumMatchesPerDay", this.GetOneInt(queries["maximumMatchesPerDay"], name)},
+                {"averageMatchesPerDay", this.GetOneDouble(queries["averageMatchesPerDay"], name)},
                 {
                     "lastMatchPlayed",
-                    UnixTimeStampToDateTime(this.GetOneDouble(statsRequests["lastMatchPlayed"], name)).ToUniversalTime()
-                }
+                    UnixTimeStampToDateTime(this.GetOneDouble(queries["lastMatchPlayed"], name)).ToUniversalTime()
+                },
+                {"killToDeathRatio", this.GetOneDouble(queries["killToDeathRatio"], name)}
             };
 
 
             return stats.ToString();
+        }
+
+        public string MakeRecentMatchesReport(int count)
+        {
+            sqlCommand.CommandText = $"SELECT * FROM matches ORDER BY timestamp DESC LIMIT {count}";
+            var recentMatchesReport = new Dictionary<int, JObject>();
+
+            using (SQLiteDataReader reader = sqlCommand.ExecuteReader())
+            {
+                while (reader.Read())
+                {
+                    var matchInfo = new JObject
+                    {
+                        //{"id", (int) (long) reader["id"]},
+                        {"server", (string) reader["endpoint"]},
+                        {"timestamp", UnixTimeStampToDateTime((double) (long) reader["timestamp"]).ToUniversalTime()},
+                        {
+                            "results", new JObject
+                            {
+                                {"map", (string) reader["map"]},
+                                {"gameMode", (string) reader["gamemode"]},
+                                {"fragLimit", (int) (long) reader["frag_limit"]},
+                                {"timeLimit", (int) (long) reader["time_limit"]},
+                                {"timeElapsed", (double) reader["time_elapsed"]},
+                                {"scoreboard", new JArray()}
+                            }
+                        }
+                    };
+                    recentMatchesReport.Add((int) (long) reader["id"], matchInfo);
+                }
+            }
+
+            var recentMatchesJson = new JArray();
+
+            foreach (var match in recentMatchesReport)
+            {
+                // TODO: Fix converting to json from scoreboardItem
+                match.Value["results"]["scoreboard"] = new JArray(this.GetScoreboard(match.Key).Select(a => JsonConvert.DeserializeObject(JsonConvert.SerializeObject(a))));
+                recentMatchesJson.Add(match.Value);
+            }
+
+            return recentMatchesJson.ToString();
+        }
+
+        public string MakeBestPlayersReport(int count)
+        {
+            sqlCommand.CommandText =
+                $"SELECT name, kills * 1.0 / deaths AS kda FROM (SELECT name, sum(kills) as kills, sum(deaths) as deaths, count(*) AS played FROM scoreboard GROUP BY name COLLATE NOCASE) WHERE played > 0 AND deaths > 0 ORDER BY kda DESC LIMIT {count}";
+
+            var bestPlayersReport = new JArray();
+
+            using (SQLiteDataReader reader = sqlCommand.ExecuteReader())
+            {
+                while (reader.Read())
+                {
+                    bestPlayersReport.Add(new JObject
+                    {
+                        {"name", (string) reader["name"]},
+                        {"killToDeathRatio", (double) reader["kda"]}
+                    });
+                }
+            }
+
+            return bestPlayersReport.ToString();
+        }
+
+        public string MakePopularServersReport(int count)
+        {
+            sqlCommand.CommandText =
+                $"SELECT name, endpoint, avg(cnt) AS pop FROM (" +
+                $"SELECT *, count(*) AS cnt FROM (" +
+                $"SELECT servers.name, matches.endpoint, matches.timestamp / 86400 AS day " +
+                $"FROM matches JOIN servers ON matches.endpoint = servers.endpoint\r\n) GROUP BY endpoint, day" +
+                $") GROUP BY endpoint ORDER BY pop DESC LIMIT {count}";
+
+            var popularServersReport = new JArray();
+
+            using (SQLiteDataReader reader = sqlCommand.ExecuteReader())
+            {
+                while (reader.Read())
+                {
+                    popularServersReport.Add(new JObject
+                    {
+                        {"endpoint", (string) reader["endpoint"]},
+                        {"name", (string) reader["name"]},
+                        {"averageMatchesPerDay", (double) reader["pop"]}
+                    });
+                }
+            }
+
+            return popularServersReport.ToString();
         }
 
         public static DateTime UnixTimeStampToDateTime(double unixTimeStamp)
