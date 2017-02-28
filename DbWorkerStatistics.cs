@@ -106,7 +106,10 @@ namespace Kontur.GameStats.Server
                 {"favouriteGameMode", this.GetStringArray(statsRequests["favouriteGameMode"], name).ToArray()[0]},
                 {"maximumMatchesPerDay", this.GetOneInt(statsRequests["maximumMatchesPerDay"], name)},
                 {"averageMatchesPerDay", this.GetOneDouble(statsRequests["averageMatchesPerDay"], name)},
-                {"lastMatchPlayed", UnixTimeStampToDateTime(this.GetOneDouble(statsRequests["lastMatchPlayed"], name)).ToUniversalTime() }
+                {
+                    "lastMatchPlayed",
+                    UnixTimeStampToDateTime(this.GetOneDouble(statsRequests["lastMatchPlayed"], name)).ToUniversalTime()
+                }
             };
 
 

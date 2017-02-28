@@ -9,6 +9,7 @@ namespace Kontur.GameStats.Server
 {
     public partial class DbWorker : IDbWorker
     {
+        private readonly SQLiteConnection sqlConnection;
         private readonly SQLiteCommand sqlCommand;
         private const string DbName = "GameStats.sqlite3";
 
@@ -17,7 +18,7 @@ namespace Kontur.GameStats.Server
             if (!System.IO.File.Exists(DbName))
                 SQLiteConnection.CreateFile(DbName);
 
-            var sqlConnection = new SQLiteConnection("Data Source= " + DbName + ";Version=3;");
+            sqlConnection = new SQLiteConnection("Data Source= " + DbName + ";Version=3;");
             sqlConnection.Open();
 
             sqlCommand = new SQLiteCommand(sqlConnection);
@@ -128,7 +129,7 @@ namespace Kontur.GameStats.Server
 
         public IEnumerable<MatchInfo.ScoreboardItem> GetScoreboard(int matchId)
         {
-            sqlCommand.CommandText = $"SELECT * FROM scoreboard WHERE match_id = {matchId}";
+            sqlCommand.CommandText = $"SELECT * FROM scoreboard WHERE match_id = {matchId} ORDER BY frags DESC";
             this.PrintSqlQuery();
             using (SQLiteDataReader reader = sqlCommand.ExecuteReader())
             {
@@ -153,20 +154,11 @@ namespace Kontur.GameStats.Server
             sqlCommand.CommandText =
                 "INSERT INTO matches (endpoint, timestamp, map, gamemode, frag_limit, time_limit, time_elapsed) " +
                 $"VALUES (\"{endpoint}\", {unixTimestamp}, \"{match.map}\", \"{match.gameMode}\", {match.fragLimit}, {match.timeLimit}, {match.timeElapsed.ToString(CultureInfo.InvariantCulture)})";
+            this.PrintSqlQuery();
 
             int affectedRows = sqlCommand.ExecuteNonQuery();
 
-            // TODO: Just do it another way
-            sqlCommand.CommandText =
-                $"SELECT id FROM matches WHERE endpoint = \"{endpoint}\" AND timestamp = {unixTimestamp};";
-            this.PrintSqlQuery();
-            int addedMatchId = 0;
-
-            using (SQLiteDataReader reader = sqlCommand.ExecuteReader())
-            {
-                if (reader.Read()) addedMatchId = reader.GetInt32(0);
-                else return false;
-            }
+            int addedMatchId = (int) sqlConnection.LastInsertRowId;
 
             if (affectedRows != 0)
                 foreach (MatchInfo.ScoreboardItem line in match.scoreboard)
@@ -177,7 +169,6 @@ namespace Kontur.GameStats.Server
                     affectedRows += sqlCommand.ExecuteNonQuery();
                 }
 
-            // If more than null rows affected return true (success)
             return affectedRows > 0;
         }
 
