@@ -94,6 +94,7 @@ namespace Kontur.GameStats.Server
 
         private void HandleContext(HttpListenerContext listenerContext)
         {
+            // TODO: Make routing with regexp
             var request = listenerContext.Request;
             var parts = request.RawUrl.Split('/');
 

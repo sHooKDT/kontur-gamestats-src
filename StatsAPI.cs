@@ -1,6 +1,9 @@
 ﻿using System;
 using System.IO;
 using System.Net;
+using System.Security.Policy;
+using System.Text.RegularExpressions;
+using System.Threading.Tasks;
 using Kontur.GameStats.Server.Datatypes;
 using Newtonsoft.Json;
 
@@ -88,7 +91,7 @@ namespace Kontur.GameStats.Server
 
         public void GetPlayerStats(HttpListenerContext context)
         {
-            string stats = db.MakePlayerStats(ExtractEndpoint(context.Request));
+            string stats = db.MakePlayerStats(ExtractName(context.Request));
 
             this.SendResponse(context.Response, stats, HttpStatusCode.OK);
         }
@@ -139,16 +142,36 @@ namespace Kontur.GameStats.Server
 
         private static string ExtractEndpoint(HttpListenerRequest req)
         {
-            return req.RawUrl.Split('/')[2];
+            // Looking for pattern: /servers/1.1.12.123-1234/*
+            const string pattern = "\\/servers\\/\\d+\\.\\d+\\.\\d+\\.\\d+-\\d+\\/?.*";
+
+            if (Regex.IsMatch(req.RawUrl, pattern)) return req.RawUrl.Split('/')[2];
+            throw new Exception("Incorrect url");
         }
 
+        private static string ExtractName(HttpListenerRequest req)
+        {
+            const string pattern = "\\/players\\/[\\w\\d%]+\\/stats";
+
+            if (Regex.IsMatch(req.RawUrl, pattern)) return req.RawUrl.Split('/')[2];
+            throw new Exception("Incorrect url");
+        }
+        
         private static DateTime ExtractTimestamp(HttpListenerRequest req)
         {
-            return DateTimeOffset.Parse(req.RawUrl.Split('/')[4]).UtcDateTime;
+            const string pattern =
+                "\\/servers\\/\\d+\\.\\d+\\.\\d+\\.\\d-\\d+\\/matches\\/\\d{1,4}-\\d{2}-\\d{1,2}T\\d{2}:\\d{2}:\\d{2}Z\\/?";
+
+            if (Regex.IsMatch(req.RawUrl, pattern)) return DateTimeOffset.Parse(req.RawUrl.Split('/')[4]).UtcDateTime;
+            throw new Exception("Incorrect url");
         }
 
         private static int ExtractCount(HttpListenerRequest req)
         {
+            const string pattern = "\\/reports\\/[\\w-]+\\/?\\d*";
+
+            if (!Regex.IsMatch(req.RawUrl, pattern)) throw new Exception("Incorrect Url"); 
+
             string[] spl = req.RawUrl.Split('/');
             // If count isn't set, default value = 5
             if (spl.Length < 4 || string.IsNullOrEmpty(spl[3])) return 5;
