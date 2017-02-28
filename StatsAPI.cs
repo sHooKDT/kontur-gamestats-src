@@ -2,6 +2,7 @@
 using System.IO;
 using System.Net;
 using System.Text.RegularExpressions;
+using System.Threading;
 using Kontur.GameStats.Server.Datatypes;
 using Newtonsoft.Json;
 
@@ -11,7 +12,7 @@ namespace Kontur.GameStats.Server
     {
         private readonly IDbWorker db;
 
-        private bool enableCache = false;
+        private readonly bool enableCache;
 
         private readonly WeakCache<string, string> playerStatsCache;
         private readonly WeakCache<string, string> serverStatsCache;
@@ -125,12 +126,16 @@ namespace Kontur.GameStats.Server
 
         public void SendResponse(HttpListenerResponse response, string body, HttpStatusCode code)
         {
+            // IMPORTANT: don't move this line
+            // Status code must be assigned before writing
+
+            response.StatusCode = (int)code;
+
             using (var writer = new StreamWriter(response.OutputStream))
             {
                 writer.Write(body);
             }
 
-            response.StatusCode = (int) code;
             response.Close();
         }
 
@@ -149,10 +154,10 @@ namespace Kontur.GameStats.Server
         private static string ExtractEndpoint(HttpListenerRequest req)
         {
             // Looking for pattern: /servers/1.1.12.123-1234/*
-            const string pattern = "\\/servers\\/\\d+\\.\\d+\\.\\d+\\.\\d+-\\d+\\/?.*";
+            const string pattern = "\\/servers\\/(\\d\\.){3}\\d-\\d+\\/?.*";
 
             if (Regex.IsMatch(req.RawUrl, pattern)) return req.RawUrl.Split('/')[2];
-            throw new Exception("Incorrect url");
+            throw new ArgumentException("Incorrect url");
         }
 
         private static string ExtractName(HttpListenerRequest req)
@@ -160,7 +165,7 @@ namespace Kontur.GameStats.Server
             const string pattern = "\\/players\\/[\\w\\d%]+\\/stats";
 
             if (Regex.IsMatch(req.RawUrl, pattern)) return req.RawUrl.Split('/')[2];
-            throw new Exception("Incorrect url");
+            throw new ArgumentException("Incorrect url");
         }
 
         private static DateTime ExtractTimestamp(HttpListenerRequest req)
@@ -169,14 +174,14 @@ namespace Kontur.GameStats.Server
                 "\\/servers\\/\\d+\\.\\d+\\.\\d+\\.\\d-\\d+\\/matches\\/\\d{1,4}-\\d{2}-\\d{1,2}T\\d{2}:\\d{2}:\\d{2}Z\\/?";
 
             if (Regex.IsMatch(req.RawUrl, pattern)) return DateTimeOffset.Parse(req.RawUrl.Split('/')[4]).UtcDateTime;
-            throw new Exception("Incorrect url");
+            throw new ArgumentException("Incorrect url");
         }
 
         private static int ExtractCount(HttpListenerRequest req)
         {
-            const string pattern = "\\/reports\\/[\\w-]+\\/?\\d*";
+            const string pattern = "\\/reports\\/[\\w-]+\\/?\\/?(\\d+)?$";
 
-            if (!Regex.IsMatch(req.RawUrl, pattern)) throw new Exception("Incorrect Url");
+            if (!Regex.IsMatch(req.RawUrl, pattern)) throw new ArgumentException("Incorrect Url");
 
             string[] spl = req.RawUrl.Split('/');
             // If count isn't set, default value = 5

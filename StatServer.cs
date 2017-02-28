@@ -73,8 +73,16 @@ namespace Kontur.GameStats.Server
                     if (listener.IsListening)
                     {
                         var context = listener.GetContext();
-                        //Task.Run(() => this.HandleContext(context));
-                        this.HandleContext(context);
+                        // TODO: Make exception handling another way
+                        try
+                        {
+                            //Task.Run(() => this.HandleContext(context));
+                            this.HandleContext(context);
+                        }
+                        catch (ArgumentException)
+                        {
+                            statsApi.HandleIncorrect(context);
+                        }
                     }
                     else
                         Thread.Sleep(0);
