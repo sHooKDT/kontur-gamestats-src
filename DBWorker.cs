@@ -175,6 +175,7 @@ namespace Kontur.GameStats.Server
         public int GetOneInt (/*SQLiteCommand command,*/ string query, string param)
         {
             sqlCommand.CommandText = string.Format(query, param);
+            this.PrintSqlQuery();
             using (SQLiteDataReader reader = sqlCommand.ExecuteReader())
             {
                 if (reader.Read()) return reader.GetInt32(0);
@@ -185,6 +186,7 @@ namespace Kontur.GameStats.Server
         public double GetOneDouble(/*SQLiteCommand command,*/ string query, string param)
         {
             sqlCommand.CommandText = string.Format(query, param);
+            this.PrintSqlQuery();
             using (SQLiteDataReader reader = sqlCommand.ExecuteReader())
             {
                 if (reader.Read()) return reader.GetDouble(0);
@@ -195,6 +197,7 @@ namespace Kontur.GameStats.Server
         public IEnumerable<string> GetStringArray(/*SQLiteCommand command,*/ string query, string param)
         {
             sqlCommand.CommandText = string.Format(query, param);
+            this.PrintSqlQuery();
             using (SQLiteDataReader reader = sqlCommand.ExecuteReader())
             {
                 while (reader.Read()) yield return reader.GetString(0);

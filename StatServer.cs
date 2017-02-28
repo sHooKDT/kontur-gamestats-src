@@ -11,7 +11,7 @@ namespace Kontur.GameStats.Server
         {
             listener = new HttpListener();
 
-            statsApi = new StatsApi(new DbWorker());
+            statsApi = new StatsApi(new DbWorker(), true);
         }
 
         public void Start(string prefix)

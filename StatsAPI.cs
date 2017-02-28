@@ -1,9 +1,7 @@
 ﻿using System;
 using System.IO;
 using System.Net;
-using System.Security.Policy;
 using System.Text.RegularExpressions;
-using System.Threading.Tasks;
 using Kontur.GameStats.Server.Datatypes;
 using Newtonsoft.Json;
 
@@ -12,6 +10,14 @@ namespace Kontur.GameStats.Server
     public class StatsApi : IStatsApi
     {
         private readonly IDbWorker db;
+
+        private bool enableCache = false;
+
+        private readonly WeakCache<string, string> playerStatsCache;
+        private readonly WeakCache<string, string> serverStatsCache;
+        private readonly WeakCache<int, string> recentMatchesReportCache;
+        private readonly WeakCache<int, string> bestPlayersReportCache;
+        private readonly WeakCache<int, string> popularServersReportCache;
 
         public void GetServersInfo(HttpListenerContext context)
         {
@@ -84,35 +90,35 @@ namespace Kontur.GameStats.Server
 
         public void GetServerStats(HttpListenerContext context)
         {
-            string stats = db.MakeServerStats(ExtractEndpoint(context.Request));
+            string stats = enableCache ? serverStatsCache[ExtractEndpoint(context.Request)] : db.MakeServerStats(ExtractEndpoint(context.Request));
 
             this.SendResponse(context.Response, stats, HttpStatusCode.OK);
         }
 
         public void GetPlayerStats(HttpListenerContext context)
         {
-            string stats = db.MakePlayerStats(ExtractName(context.Request));
+            string stats = enableCache ? playerStatsCache[ExtractName(context.Request)] : db.MakePlayerStats(ExtractName(context.Request));
 
             this.SendResponse(context.Response, stats, HttpStatusCode.OK);
         }
 
         public void GetRecentMatchesReport(HttpListenerContext context)
         {
-            string report = db.MakeRecentMatchesReport(ExtractCount(context.Request));
+            string report = enableCache ? recentMatchesReportCache[ExtractCount(context.Request)]: db.MakeRecentMatchesReport(ExtractCount(context.Request));
 
             this.SendResponse(context.Response, report, HttpStatusCode.OK);
         }
 
         public void GetBestPlayersReport(HttpListenerContext context)
         {
-            string report = db.MakeBestPlayersReport(ExtractCount(context.Request));
+            string report = enableCache? bestPlayersReportCache[ExtractCount(context.Request)] : db.MakeBestPlayersReport(ExtractCount(context.Request)); ;
 
             this.SendResponse(context.Response, report, HttpStatusCode.OK);
         }
 
         public void GetPopularServersReport(HttpListenerContext context)
         {
-            string report = db.MakePopularServersReport(ExtractCount(context.Request));
+            string report = enableCache ? popularServersReportCache[ExtractCount(context.Request)] : db.MakePopularServersReport(ExtractCount(context.Request));
 
             this.SendResponse(context.Response, report, HttpStatusCode.OK);
         }
@@ -156,7 +162,7 @@ namespace Kontur.GameStats.Server
             if (Regex.IsMatch(req.RawUrl, pattern)) return req.RawUrl.Split('/')[2];
             throw new Exception("Incorrect url");
         }
-        
+
         private static DateTime ExtractTimestamp(HttpListenerRequest req)
         {
             const string pattern =
@@ -170,7 +176,7 @@ namespace Kontur.GameStats.Server
         {
             const string pattern = "\\/reports\\/[\\w-]+\\/?\\d*";
 
-            if (!Regex.IsMatch(req.RawUrl, pattern)) throw new Exception("Incorrect Url"); 
+            if (!Regex.IsMatch(req.RawUrl, pattern)) throw new Exception("Incorrect Url");
 
             string[] spl = req.RawUrl.Split('/');
             // If count isn't set, default value = 5
@@ -186,9 +192,17 @@ namespace Kontur.GameStats.Server
             return count;
         }
 
-        public StatsApi(IDbWorker database)
+        public StatsApi(IDbWorker database, bool cacheOn)
         {
             db = database;
+            enableCache = cacheOn;
+
+            // Setup cache
+            playerStatsCache = new WeakCache<string, string>(db.MakePlayerStats);
+            serverStatsCache = new WeakCache<string, string>(db.MakeServerStats);
+            recentMatchesReportCache = new WeakCache<int, string>(db.MakeRecentMatchesReport);
+            bestPlayersReportCache = new WeakCache<int, string>(db.MakeBestPlayersReport);
+            popularServersReportCache = new WeakCache<int, string>(db.MakePopularServersReport);
         }
     }
 }

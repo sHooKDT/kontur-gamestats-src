@@ -121,6 +121,8 @@ namespace Kontur.GameStats.Server
         public string MakeRecentMatchesReport(int count)
         {
             sqlCommand.CommandText = $"SELECT * FROM matches ORDER BY timestamp DESC LIMIT {count}";
+            this.PrintSqlQuery();
+
             var recentMatchesReport = new Dictionary<int, JObject>();
 
             using (SQLiteDataReader reader = sqlCommand.ExecuteReader())
@@ -129,7 +131,6 @@ namespace Kontur.GameStats.Server
                 {
                     var matchInfo = new JObject
                     {
-                        //{"id", (int) (long) reader["id"]},
                         {"server", (string) reader["endpoint"]},
                         {"timestamp", UnixTimeStampToDateTime((double) (long) reader["timestamp"]).ToUniversalTime()},
                         {
@@ -164,7 +165,7 @@ namespace Kontur.GameStats.Server
         {
             sqlCommand.CommandText =
                 $"SELECT name, kills * 1.0 / deaths AS kda FROM (SELECT name, sum(kills) as kills, sum(deaths) as deaths, count(*) AS played FROM scoreboard GROUP BY name COLLATE NOCASE) WHERE played > 0 AND deaths > 0 ORDER BY kda DESC LIMIT {count}";
-
+            this.PrintSqlQuery();
             var bestPlayersReport = new JArray();
 
             using (SQLiteDataReader reader = sqlCommand.ExecuteReader())
@@ -190,7 +191,7 @@ namespace Kontur.GameStats.Server
                 $"SELECT servers.name, matches.endpoint, matches.timestamp / 86400 AS day " +
                 $"FROM matches JOIN servers ON matches.endpoint = servers.endpoint\r\n) GROUP BY endpoint, day" +
                 $") GROUP BY endpoint ORDER BY pop DESC LIMIT {count}";
-
+            this.PrintSqlQuery();
             var popularServersReport = new JArray();
 
             using (SQLiteDataReader reader = sqlCommand.ExecuteReader())
