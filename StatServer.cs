@@ -11,7 +11,7 @@ namespace Kontur.GameStats.Server
         {
             listener = new HttpListener();
 
-            statsApi = new StatsApi(new DbWorker(), true);
+            statsApi = new StatsApi(new SqliteAdapter(), true);
         }
 
         public void Start(string prefix)
@@ -24,7 +24,7 @@ namespace Kontur.GameStats.Server
                     listener.Prefixes.Add(prefix);
                     listener.Start();
 
-                    listenerThread = new Thread(Listen)
+                    listenerThread = new Thread(this.Listen)
                     {
                         IsBackground = true,
                         Priority = ThreadPriority.Highest
@@ -59,7 +59,7 @@ namespace Kontur.GameStats.Server
 
             disposed = true;
 
-            Stop();
+            this.Stop();
 
             listener.Close();
         }
@@ -71,7 +71,7 @@ namespace Kontur.GameStats.Server
                 if (listener.IsListening)
                 {
                     var context = listener.GetContext();
-                    // TODO: Make exception handling another way
+
                     try
                     {
                         //Task.Run(() => this.HandleContext(context));
@@ -79,10 +79,7 @@ namespace Kontur.GameStats.Server
                     }
                     catch (ArgumentException)
                     {
-                        Console.ForegroundColor = ConsoleColor.Magenta;
-                        Console.WriteLine("Incorrect request");
-                        Console.ResetColor();
-
+                        Extras.WriteColoredLine("Incorrect request", ConsoleColor.Magenta);
                         statsApi.HandleIncorrect(context);
                     }
 
@@ -93,11 +90,7 @@ namespace Kontur.GameStats.Server
                     catch (Exception error)
                     {
                         statsApi.HandleIncorrect(context);
-
-                        Console.ForegroundColor = ConsoleColor.Red;
-                        Console.WriteLine(
-                            $"Source: {error.Source}\nException: {error.Message}\nStack Trace: {error.StackTrace}");
-                        Console.ResetColor();
+                        Extras.WriteColoredLine($"Source: {error.Source}\nException: {error.Message}\nStack Trace: {error.StackTrace}", ConsoleColor.Red);
                     }
                 }
                 else
@@ -111,9 +104,7 @@ namespace Kontur.GameStats.Server
             var request = listenerContext.Request;
             var parts = request.RawUrl.Split('/');
 
-            Console.ForegroundColor = ConsoleColor.DarkGreen;
-            Console.WriteLine("{1} {0}", request.RawUrl, request.HttpMethod);
-            Console.ResetColor();
+            Extras.WriteColoredLine(String.Format("{1} {0}", request.RawUrl, request.HttpMethod), ConsoleColor.DarkGreen);
 
             if (parts[1] == "servers")
             {

@@ -1,12 +1,12 @@
 ﻿using System;
-using Kontur.GameStats.Server.Datatypes;
+using System.Collections.Generic;
 
 namespace Kontur.GameStats.Server
 {
-    public interface IDbWorker
+    public interface IDbAdapter
     {
         // Список всех серверов
-        EndpointInfo[] GetServersInfo();
+        IEnumerable<EndpointInfo> GetServersInfo();
 
         // Информация о конкретном сервере
         EndpointInfo.ServerInfo GetServerInfo(string endpoint);

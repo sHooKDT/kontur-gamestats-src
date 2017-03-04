@@ -7,7 +7,7 @@ using Newtonsoft.Json.Linq;
 
 namespace Kontur.GameStats.Server
 {
-    public partial class DbWorker
+    public partial class SqliteAdapter
     {
         public string MakeServerStats (string endpoint)
         {
@@ -108,8 +108,7 @@ namespace Kontur.GameStats.Server
                 {"maximumMatchesPerDay", this.GetOneInt(queries["maximumMatchesPerDay"], name)},
                 {"averageMatchesPerDay", this.GetOneDouble(queries["averageMatchesPerDay"], name)},
                 {
-                    "lastMatchPlayed",
-                    UnixTimeStampToDateTime(this.GetOneDouble(queries["lastMatchPlayed"], name)).ToUniversalTime()
+                    "lastMatchPlayed", Extras.UnixTimeToDateTime(this.GetOneDouble(queries["lastMatchPlayed"], name)).ToUniversalTime()
                 },
                 {"killToDeathRatio", this.GetOneDouble(queries["killToDeathRatio"], name)}
             };
@@ -132,7 +131,7 @@ namespace Kontur.GameStats.Server
                     var matchInfo = new JObject
                     {
                         {"server", (string) reader["endpoint"]},
-                        {"timestamp", UnixTimeStampToDateTime((double) (long) reader["timestamp"]).ToUniversalTime()},
+                        {"timestamp", Extras.UnixTimeToDateTime((double) (long) reader["timestamp"]).ToUniversalTime()},
                         {
                             "results", new JObject
                             {
@@ -208,14 +207,6 @@ namespace Kontur.GameStats.Server
             }
 
             return popularServersReport.ToString();
-        }
-
-        public static DateTime UnixTimeStampToDateTime(double unixTimeStamp)
-        {
-            // Unix timestamp is seconds past epoch
-            System.DateTime dtDateTime = new DateTime(1970, 1, 1, 0, 0, 0, 0, System.DateTimeKind.Utc);
-            dtDateTime = dtDateTime.AddSeconds(unixTimeStamp).ToLocalTime();
-            return dtDateTime;
         }
     }
 }

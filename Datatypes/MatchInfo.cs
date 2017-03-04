@@ -1,4 +1,4 @@
-﻿namespace Kontur.GameStats.Server.Datatypes
+﻿namespace Kontur.GameStats.Server
 {
     public class MatchInfo
     {
@@ -15,6 +15,11 @@
             public int frags;
             public int kills;
             public int deaths;
+
+            public override string ToString()
+            {
+                return $"\"{name}\",{frags},{kills},{deaths}";
+            }
         }
     }
 }

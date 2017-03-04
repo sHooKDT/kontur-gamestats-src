@@ -3,19 +3,20 @@ using System.Collections.Generic;
 using System.Data.SQLite;
 using System.Globalization;
 using System.Linq;
-using Kontur.GameStats.Server.Datatypes;
+using System.Text;
 
 namespace Kontur.GameStats.Server
 {
-    public partial class DbWorker : IDbWorker
+    public partial class SqliteAdapter : IDbAdapter
     {
         private readonly SQLiteConnection sqlConnection;
         private readonly SQLiteCommand sqlCommand;
         private const string DbName = "GameStats.sqlite3";
 
-        public DbWorker()
+        public SqliteAdapter()
         {
-            if (!System.IO.File.Exists(DbName))
+            // TODO: SUPERIMPORTANT: PLACE A ! IN IF
+            if (System.IO.File.Exists(DbName))
                 SQLiteConnection.CreateFile(DbName);
 
             sqlConnection = new SQLiteConnection("Data Source= " + DbName + ";Version=3;");
@@ -31,21 +32,20 @@ namespace Kontur.GameStats.Server
             string[] tablesCreation = new[]
             {
                 @"servers (endpoint TEXT PRIMARY KEY, name TEXT, gamemodes TEXT)",
-                @"matches (id INTEGER PRIMARY KEY, endpoint TEXT, timestamp INTEGER, map TEXT, gamemode TEXT, frag_limit INTEGER, time_limit INTEGER, time_elapsed REAL)",
-                @"scoreboard (match_id INTEGER, name TEXT, frags INTEGER, kills INTEGER, deaths INTEGER)"
+                @"matches (id INTEGER PRIMARY KEY, endpoint TEXT, timestamp INTEGER, map TEXT, gamemode TEXT, frag_limit INTEGER, time_limit INTEGER, time_elapsed REAL, UNIQUE(endpoint, timestamp) ON CONFLICT IGNORE)",
+                @"scoreboard (match_id INTEGER, name TEXT, frags INTEGER, kills INTEGER, deaths INTEGER, UNIQUE (match_id, name) ON CONFLICT IGNORE)"
             };
 
             foreach (string table in tablesCreation)
             {
                 sqlCommand.CommandText = "CREATE TABLE IF NOT EXISTS " + table;
+                this.PrintSqlQuery();
                 sqlCommand.ExecuteNonQuery();
             }
         }
 
-        public EndpointInfo[] GetServersInfo()
+        public IEnumerable<EndpointInfo> GetServersInfo()
         {
-            var servers = new List<EndpointInfo>();
-
             sqlCommand.CommandText = "SELECT * FROM servers;";
             this.PrintSqlQuery();
 
@@ -56,28 +56,20 @@ namespace Kontur.GameStats.Server
                     string name = (string) reader["name"];
                     string gamemodes = (string) reader["gamemodes"];
 
-                    // TODO: Simplify with yield return
-                    servers.Add(new EndpointInfo(endpoint, new EndpointInfo.ServerInfo(name, gamemodes.Split(','))));
+                    yield return new EndpointInfo(endpoint, new EndpointInfo.ServerInfo(name, gamemodes.Split(',')));
                 }
-
-            return servers.ToArray();
         }
 
         public EndpointInfo.ServerInfo GetServerInfo(string endpoint)
         {
-            EndpointInfo.ServerInfo serverInfo = null;
-
             sqlCommand.CommandText = $"SELECT name, gamemodes FROM servers WHERE endpoint = \"{endpoint}\";";
             this.PrintSqlQuery();
 
             using (SQLiteDataReader reader = sqlCommand.ExecuteReader())
-                while (reader.Read())
-                {
-                    serverInfo = new EndpointInfo.ServerInfo(reader.GetString(0), reader.GetString(1).Split(','));
-                    break;
-                }
+                if (reader.Read())
+                    return new EndpointInfo.ServerInfo(reader.GetString(0), reader.GetString(1).Split(','));
 
-            return serverInfo;
+            return null;
         }
 
         public bool PutServerInfo(EndpointInfo server)
@@ -86,13 +78,12 @@ namespace Kontur.GameStats.Server
                 $"INSERT OR REPLACE INTO servers VALUES (\"{server.endpoint}\", \"{server.info.name}\", \"{server.info.GetGameModesString()}\");";
             this.PrintSqlQuery();
 
-            int affected = sqlCommand.ExecuteNonQuery();
-            return affected > 0;
+            return sqlCommand.ExecuteNonQuery() > 0;
         }
 
         public MatchInfo GetServerMatch(string endpoint, DateTime timestamp)
         {
-            double unixTimestamp = timestamp.Subtract(new DateTime(1970, 1, 1)).TotalSeconds;
+            double unixTimestamp = Extras.DateTimeToUnixTime(timestamp);
 
             sqlCommand.CommandText =
                 $"SELECT * FROM matches WHERE endpoint = \"{endpoint}\" AND timestamp = {unixTimestamp};";
@@ -148,12 +139,12 @@ namespace Kontur.GameStats.Server
 
         public bool PutServerMatch(string endpoint, DateTime timestamp, MatchInfo match)
         {
-            // TODO: Don't add not unique matches
-            double unixTimestamp = timestamp.Subtract(new DateTime(1970, 1, 1)).TotalSeconds;
+            double unixTimestamp = Extras.DateTimeToUnixTime(timestamp);
 
             sqlCommand.CommandText =
                 "INSERT INTO matches (endpoint, timestamp, map, gamemode, frag_limit, time_limit, time_elapsed) " +
-                $"VALUES (\"{endpoint}\", {unixTimestamp}, \"{match.map}\", \"{match.gameMode}\", {match.fragLimit}, {match.timeLimit}, {match.timeElapsed.ToString(CultureInfo.InvariantCulture)})";
+                $"VALUES (\"{endpoint}\", {unixTimestamp}, \"{match.map}\", \"{match.gameMode}\"," +
+                $" {match.fragLimit}, {match.timeLimit}, {match.timeElapsed.ToString(CultureInfo.InvariantCulture)})";
             this.PrintSqlQuery();
 
             int affectedRows = sqlCommand.ExecuteNonQuery();
@@ -161,18 +152,23 @@ namespace Kontur.GameStats.Server
             int addedMatchId = (int) sqlConnection.LastInsertRowId;
 
             if (affectedRows != 0)
-                foreach (MatchInfo.ScoreboardItem line in match.scoreboard)
+            {
+                var sb = new StringBuilder();
+                sb.Append("INSERT INTO scoreboard (match_id, name, frags, kills, deaths) \n");
+                sb.Append("SELECT 0 as match_id, \"0\" as name, 0 as frags, 0 as kills, 0 as deaths \n");
+                foreach (var item in match.scoreboard)
                 {
-                    sqlCommand.CommandText =
-                        $"INSERT INTO scoreboard (match_id, name, frags, kills, deaths) VALUES ({addedMatchId}, \"{line.name}\", {line.frags}, {line.kills}, {line.deaths});";
-                    this.PrintSqlQuery();
-                    affectedRows += sqlCommand.ExecuteNonQuery();
+                    sb.AppendLine("UNION SELECT " + addedMatchId + "," + item.ToString());
                 }
+                sqlCommand.CommandText = sb.ToString();
+                this.PrintSqlQuery();
+                affectedRows += sqlCommand.ExecuteNonQuery();
+            }
 
             return affectedRows > 0;
         }
 
-        public int GetOneInt (/*SQLiteCommand command,*/ string query, string param)
+        public int GetOneInt(string query, string param)
         {
             sqlCommand.CommandText = string.Format(query, param);
             this.PrintSqlQuery();
@@ -183,7 +179,7 @@ namespace Kontur.GameStats.Server
             throw new Exception("No data");
         }
 
-        public double GetOneDouble(/*SQLiteCommand command,*/ string query, string param)
+        public double GetOneDouble(string query, string param)
         {
             sqlCommand.CommandText = string.Format(query, param);
             this.PrintSqlQuery();
@@ -194,7 +190,7 @@ namespace Kontur.GameStats.Server
             throw new Exception("No data");
         }
 
-        public IEnumerable<string> GetStringArray(/*SQLiteCommand command,*/ string query, string param)
+        public IEnumerable<string> GetStringArray(string query, string param)
         {
             sqlCommand.CommandText = string.Format(query, param);
             this.PrintSqlQuery();
@@ -204,7 +200,7 @@ namespace Kontur.GameStats.Server
             }
         }
 
-        private void PrintSqlQuery()
+        public void PrintSqlQuery()
         {
             Console.ForegroundColor = ConsoleColor.DarkCyan;
             Console.WriteLine(sqlCommand.CommandText);
