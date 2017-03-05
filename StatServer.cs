@@ -1,4 +1,6 @@
 ﻿using System;
+using System.Collections;
+using System.Collections.Generic;
 using System.Net;
 using System.Net.Http;
 using System.Threading;
@@ -7,10 +9,23 @@ namespace Kontur.GameStats.Server
 {
     public class StatServer : IDisposable
     {
+
+        private readonly HttpListener listener;
+        private readonly StatsApi statsApi;
+
+        private Thread listenerThread;
+        //private Thread[] workers;
+
+        //private Queue<HttpListenerContext> reqQueue;
+
+        private bool disposed;
+        private volatile bool isRunning;
+
+        //private const int MaxThreads = 20; 
+
         public StatServer()
         {
             listener = new HttpListener();
-
             statsApi = new StatsApi(new SqliteAdapter(), true);
         }
 
@@ -173,13 +188,5 @@ namespace Kontur.GameStats.Server
                 statsApi.HandleIncorrect(listenerContext);
             }
         }
-
-        private readonly HttpListener listener;
-
-        private readonly StatsApi statsApi;
-
-        private Thread listenerThread;
-        private bool disposed;
-        private volatile bool isRunning;
     }
 }
