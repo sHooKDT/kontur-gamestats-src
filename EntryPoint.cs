@@ -25,7 +25,7 @@
 
         private static void RunServer(Options options)
         {
-            using (var server = new StatServer())
+            using (var server = new StatServer(10))
             {
                 server.Start(options.Prefix);
 

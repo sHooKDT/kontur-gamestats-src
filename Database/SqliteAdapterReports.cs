@@ -163,7 +163,7 @@ namespace Kontur.GameStats.Server
         public string MakeBestPlayersReport(int count)
         {
             sqlCommand.CommandText =
-                $"SELECT name, kills * 1.0 / deaths AS kda FROM (SELECT name, sum(kills) as kills, sum(deaths) as deaths, count(*) AS played FROM scoreboard GROUP BY name COLLATE NOCASE) WHERE played > 0 AND deaths > 0 ORDER BY kda DESC LIMIT {count}";
+                $"SELECT name, kills * 1.0 / deaths AS kda FROM (SELECT name, sum(kills) as kills, sum(deaths) as deaths, count(*) AS played FROM scoreboard GROUP BY name COLLATE NOCASE) WHERE played > 10 AND deaths > 0 ORDER BY kda DESC LIMIT {count}";
             this.PrintSqlQuery();
             var bestPlayersReport = new JArray();
 

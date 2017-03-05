@@ -11,19 +11,19 @@ namespace Kontur.GameStats.Server
 {
     public class StatsApi : IStatsApi
     {
-        private readonly IDbAdapter db;
+        private readonly IDbAdapter _db;
 
-        private readonly bool enableCache;
+        private readonly bool _enableCache;
 
-        private readonly WeakCache<string, string> playerStatsCache;
-        private readonly WeakCache<string, string> serverStatsCache;
-        private readonly WeakCache<int, string> recentMatchesReportCache;
-        private readonly WeakCache<int, string> bestPlayersReportCache;
-        private readonly WeakCache<int, string> popularServersReportCache;
+        private readonly WeakCache<string, string> _playerStatsCache;
+        private readonly WeakCache<string, string> _serverStatsCache;
+        private readonly WeakCache<int, string> _recentMatchesReportCache;
+        private readonly WeakCache<int, string> _bestPlayersReportCache;
+        private readonly WeakCache<int, string> _popularServersReportCache;
 
         public void GetServersInfo(HttpListenerContext context)
         {
-            var servers = db.GetServersInfo();
+            var servers = _db.GetServersInfo();
             string serversJson = JsonConvert.SerializeObject(servers);
 
             this.SendResponse(context.Response, serversJson, HttpStatusCode.OK);
@@ -32,7 +32,7 @@ namespace Kontur.GameStats.Server
         public void GetServerInfo(HttpListenerContext context)
         {
             string endpoint = ReqExtracters.ExtractEndpoint(context.Request);
-            EndpointInfo.ServerInfo serverInfo = db.GetServerInfo(endpoint);
+            EndpointInfo.ServerInfo serverInfo = _db.GetServerInfo(endpoint);
 
             if (serverInfo == null)
             {
@@ -53,7 +53,7 @@ namespace Kontur.GameStats.Server
                 JsonConvert.DeserializeObject<EndpointInfo.ServerInfo>(inpStream.ReadToEnd());
             string endPoint = ReqExtracters.ExtractEndpoint(context.Request);
 
-            db.PutServerInfo(new EndpointInfo(endPoint, serverInfo));
+            _db.PutServerInfo(new EndpointInfo(endPoint, serverInfo));
 
             this.SendResponse(context.Response, "", HttpStatusCode.OK);
         }
@@ -63,7 +63,7 @@ namespace Kontur.GameStats.Server
             string endpoint = ReqExtracters.ExtractEndpoint(context.Request);
             DateTime timestamp = ReqExtracters.ExtractTimestamp(context.Request);
 
-            MatchInfo matchInfo = db.GetServerMatch(endpoint, timestamp);
+            MatchInfo matchInfo = _db.GetServerMatch(endpoint, timestamp);
 
             if (matchInfo == null)
             {
@@ -87,40 +87,40 @@ namespace Kontur.GameStats.Server
                 JsonConvert.DeserializeObject<MatchInfo>(inpStream.ReadToEnd());
 
             this.SendResponse(context.Response, "",
-                db.PutServerMatch(endpoint, timestamp, matchInfo) ? HttpStatusCode.OK : HttpStatusCode.BadRequest);
+                _db.PutServerMatch(endpoint, timestamp, matchInfo) ? HttpStatusCode.OK : HttpStatusCode.BadRequest);
         }
 
         public void GetServerStats(HttpListenerContext context)
         {
-            string stats = enableCache ? serverStatsCache[ReqExtracters.ExtractEndpoint(context.Request)] : db.MakeServerStats(ReqExtracters.ExtractEndpoint(context.Request));
+            string stats = _enableCache ? _serverStatsCache[ReqExtracters.ExtractEndpoint(context.Request)] : _db.MakeServerStats(ReqExtracters.ExtractEndpoint(context.Request));
 
             this.SendResponse(context.Response, stats, HttpStatusCode.OK);
         }
 
         public void GetPlayerStats(HttpListenerContext context)
         {
-            string stats = enableCache ? playerStatsCache[ReqExtracters.ExtractName(context.Request)] : db.MakePlayerStats(ReqExtracters.ExtractName(context.Request));
+            string stats = _enableCache ? _playerStatsCache[ReqExtracters.ExtractName(context.Request)] : _db.MakePlayerStats(ReqExtracters.ExtractName(context.Request));
 
             this.SendResponse(context.Response, stats, HttpStatusCode.OK);
         }
 
         public void GetRecentMatchesReport(HttpListenerContext context)
         {
-            string report = enableCache ? recentMatchesReportCache[ReqExtracters.ExtractCount(context.Request)]: db.MakeRecentMatchesReport(ReqExtracters.ExtractCount(context.Request));
+            string report = _enableCache ? _recentMatchesReportCache[ReqExtracters.ExtractCount(context.Request)]: _db.MakeRecentMatchesReport(ReqExtracters.ExtractCount(context.Request));
 
             this.SendResponse(context.Response, report, HttpStatusCode.OK);
         }
 
         public void GetBestPlayersReport(HttpListenerContext context)
         {
-            string report = enableCache? bestPlayersReportCache[ReqExtracters.ExtractCount(context.Request)] : db.MakeBestPlayersReport(ReqExtracters.ExtractCount(context.Request)); ;
+            string report = _enableCache? _bestPlayersReportCache[ReqExtracters.ExtractCount(context.Request)] : _db.MakeBestPlayersReport(ReqExtracters.ExtractCount(context.Request)); ;
 
             this.SendResponse(context.Response, report, HttpStatusCode.OK);
         }
 
         public void GetPopularServersReport(HttpListenerContext context)
         {
-            string report = enableCache ? popularServersReportCache[ReqExtracters.ExtractCount(context.Request)] : db.MakePopularServersReport(ReqExtracters.ExtractCount(context.Request));
+            string report = _enableCache ? _popularServersReportCache[ReqExtracters.ExtractCount(context.Request)] : _db.MakePopularServersReport(ReqExtracters.ExtractCount(context.Request));
 
             this.SendResponse(context.Response, report, HttpStatusCode.OK);
         }
@@ -147,15 +147,15 @@ namespace Kontur.GameStats.Server
 
         public StatsApi(IDbAdapter database, bool cacheOn)
         {
-            db = database;
-            enableCache = cacheOn;
+            _db = database;
+            _enableCache = cacheOn;
 
             // Cache setup
-            playerStatsCache = new WeakCache<string, string>(db.MakePlayerStats);
-            serverStatsCache = new WeakCache<string, string>(db.MakeServerStats);
-            recentMatchesReportCache = new WeakCache<int, string>(db.MakeRecentMatchesReport);
-            bestPlayersReportCache = new WeakCache<int, string>(db.MakeBestPlayersReport);
-            popularServersReportCache = new WeakCache<int, string>(db.MakePopularServersReport);
+            _playerStatsCache = new WeakCache<string, string>(_db.MakePlayerStats);
+            _serverStatsCache = new WeakCache<string, string>(_db.MakeServerStats);
+            _recentMatchesReportCache = new WeakCache<int, string>(_db.MakeRecentMatchesReport);
+            _bestPlayersReportCache = new WeakCache<int, string>(_db.MakeBestPlayersReport);
+            _popularServersReportCache = new WeakCache<int, string>(_db.MakePopularServersReport);
         }
     }
 }

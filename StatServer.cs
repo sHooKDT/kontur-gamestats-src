@@ -9,109 +9,137 @@ namespace Kontur.GameStats.Server
 {
     public class StatServer : IDisposable
     {
+        private readonly HttpListener _listener;
+        private readonly StatsApi _statsApi;
 
-        private readonly HttpListener listener;
-        private readonly StatsApi statsApi;
+        private readonly Thread _listenerThread;
+        //private readonly Thread[] _workers;
+        private readonly ApiWorkerThread[] _workers;
+        private readonly ManualResetEvent _stop, _ready;
+        private readonly Queue<HttpListenerContext> _queue;
 
-        private Thread listenerThread;
-        //private Thread[] workers;
-
-        //private Queue<HttpListenerContext> reqQueue;
-
-        private bool disposed;
-        private volatile bool isRunning;
-
-        //private const int MaxThreads = 20; 
-
-        public StatServer()
+        public StatServer(int maxThreads)
         {
-            listener = new HttpListener();
-            statsApi = new StatsApi(new SqliteAdapter(), true);
+            _statsApi = new StatsApi(new SqliteAdapter(), true);
+
+            //_workers = new Thread[maxThreads];
+            _workers = new ApiWorkerThread[maxThreads];
+            _queue = new Queue<HttpListenerContext>();
+            _stop = new ManualResetEvent(false);
+            _ready = new ManualResetEvent(false);
+            _listener = new HttpListener();
+            _listenerThread = new Thread(this.HandleRequests);
         }
 
         public void Start(string prefix)
         {
-            lock (listener)
+            lock (_listener)
             {
-                if (!isRunning)
+                _listener.Prefixes.Clear();
+                _listener.Prefixes.Add(prefix);
+                _listener.Start();
+                _listenerThread.Start();
+
+                for (int i = 0; i < _workers.Length; i++)
                 {
-                    listener.Prefixes.Clear();
-                    listener.Prefixes.Add(prefix);
-                    listener.Start();
-
-                    listenerThread = new Thread(this.Listen)
-                    {
-                        IsBackground = true,
-                        Priority = ThreadPriority.Highest
-                    };
-                    listenerThread.Start();
-
-                    isRunning = true;
+                    //_workers[i] = new Thread(this.Worker);
+                    _workers[i] = new ApiWorkerThread(new StatsApi(new SqliteAdapter(), false), _queue, _ready, _stop);
+                    _workers[i].Start();
                 }
             }
         }
 
         public void Stop()
         {
-            lock (listener)
+            lock (_listener)
             {
-                if (!isRunning)
-                    return;
+                _stop.Set();
+                _listenerThread.Join();
+                //foreach (Thread worker in _workers)
+                foreach (var worker in _workers)
+                {
+                    worker.Join();
+                }
 
-                listener.Stop();
-
-                listenerThread.Abort();
-                listenerThread.Join();
-
-                isRunning = false;
+                _listener.Stop();
             }
         }
 
         public void Dispose()
         {
-            if (disposed)
-                return;
-
-            disposed = true;
-
             this.Stop();
-
-            listener.Close();
         }
 
-        private void Listen()
+        private void ContextReady(IAsyncResult ar)
         {
-            while (true)
+            try
             {
-                if (listener.IsListening)
+                lock (_queue)
                 {
-                    var context = listener.GetContext();
-
-                    try
-                    {
-                        //Task.Run(() => this.HandleContext(context));
-                        this.HandleContext(context);
-                    }
-                    catch (ArgumentException)
-                    {
-                        Extras.WriteColoredLine("Incorrect request", ConsoleColor.Magenta);
-                        statsApi.HandleIncorrect(context);
-                    }
-
-                    catch (ThreadAbortException)
-                    {
-                        return;
-                    }
-                    catch (Exception error)
-                    {
-                        statsApi.HandleIncorrect(context);
-                        Extras.WriteColoredLine($"Source: {error.Source}\nException: {error.Message}\nStack Trace: {error.StackTrace}", ConsoleColor.Red);
-                    }
+                    _queue.Enqueue(_listener.EndGetContext(ar));
+                    _ready.Set();
                 }
-                else
-                    Thread.Sleep(0);
+            }
+            catch
+            {
+                return;
             }
         }
+
+        private void HandleRequests()
+        {
+            while (_listener.IsListening)
+            {
+                var context = _listener.BeginGetContext(this.ContextReady, null);
+
+                if (0 == WaitHandle.WaitAny(new[] {_stop, context.AsyncWaitHandle}))
+                    return;
+            }
+        }
+
+        private void Worker()
+        {
+            WaitHandle[] wait = {_ready, _stop};
+            while (0 == WaitHandle.WaitAny(wait))
+            {
+                HttpListenerContext context;
+                lock (_queue)
+                {
+                    if (_queue.Count > 0)
+                        context = _queue.Dequeue();
+                    else
+                    {
+                        _ready.Reset();
+                        continue;
+                    }
+                }
+
+                try
+                {
+                    //ProcessRequest(context);
+                    this.HandleContext(context);
+                }
+                catch (ArgumentException)
+                {
+                    Extras.WriteColoredLine("Incorrect request", ConsoleColor.Magenta);
+                    _statsApi.HandleIncorrect(context);
+                }
+
+                catch (ThreadAbortException)
+                {
+                    return;
+                }
+                catch (Exception error)
+                {
+                    _statsApi.HandleIncorrect(context);
+                    Extras.WriteColoredLine(
+                        $"Source: {error.Source}\nException: {error.Message}\nStack Trace: {error.StackTrace}",
+                        ConsoleColor.Red);
+                }
+            }
+        }
+
+        //public event Action<HttpListenerContext> ProcessRequest;
 
         private void HandleContext(HttpListenerContext listenerContext)
         {
@@ -127,9 +155,9 @@ namespace Kontur.GameStats.Server
                 {
                     // /servers/info GET
                     if (request.HttpMethod == HttpMethod.Get.Method)
-                        statsApi.GetServersInfo(listenerContext);
+                        _statsApi.GetServersInfo(listenerContext);
                     // If method is not get
-                    else statsApi.HandleIncorrect(listenerContext);
+                    else _statsApi.HandleIncorrect(listenerContext);
                 }
                 else
                 {
@@ -138,25 +166,25 @@ namespace Kontur.GameStats.Server
                         case "info":
                             // /servers/<endpoint>/info PUT, GET
                             if (request.HttpMethod == HttpMethod.Get.Method)
-                                statsApi.GetServerInfo(listenerContext);
+                                _statsApi.GetServerInfo(listenerContext);
                             else if (request.HttpMethod == HttpMethod.Put.Method)
-                                statsApi.PutServerInfo(listenerContext);
-                            else statsApi.HandleIncorrect(listenerContext);
+                                _statsApi.PutServerInfo(listenerContext);
+                            else _statsApi.HandleIncorrect(listenerContext);
                             break;
                         case "matches":
                             // /servers/<endpoint>/matches/<timestamp> PUT, GET
                             if (request.HttpMethod == HttpMethod.Get.Method)
-                                statsApi.GetServerMatch(listenerContext);
+                                _statsApi.GetServerMatch(listenerContext);
                             else if (request.HttpMethod == HttpMethod.Put.Method)
-                                statsApi.PutServerMatch(listenerContext);
-                            else statsApi.HandleIncorrect(listenerContext);
+                                _statsApi.PutServerMatch(listenerContext);
+                            else _statsApi.HandleIncorrect(listenerContext);
                             break;
                         case "stats":
                             // /servers/<endpoint>/stats GET
-                            statsApi.GetServerStats(listenerContext);
+                            _statsApi.GetServerStats(listenerContext);
                             break;
                         default:
-                            statsApi.HandleIncorrect(listenerContext);
+                            _statsApi.HandleIncorrect(listenerContext);
                             break;
                     }
                 }
@@ -166,26 +194,26 @@ namespace Kontur.GameStats.Server
                 switch (parts[2])
                 {
                     case "recent-matches":
-                        statsApi.GetRecentMatchesReport(listenerContext);
+                        _statsApi.GetRecentMatchesReport(listenerContext);
                         break;
                     case "best-players":
-                        statsApi.GetBestPlayersReport(listenerContext);
+                        _statsApi.GetBestPlayersReport(listenerContext);
                         break;
                     case "popular-servers":
-                        statsApi.GetPopularServersReport(listenerContext);
+                        _statsApi.GetPopularServersReport(listenerContext);
                         break;
                     default:
-                        statsApi.HandleIncorrect(listenerContext);
+                        _statsApi.HandleIncorrect(listenerContext);
                         break;
                 }
             }
             else if (parts[1] == "players" && parts[3] == "stats" && request.HttpMethod == HttpMethod.Get.Method)
             {
-                statsApi.GetPlayerStats(listenerContext);
+                _statsApi.GetPlayerStats(listenerContext);
             }
             else
             {
-                statsApi.HandleIncorrect(listenerContext);
+                _statsApi.HandleIncorrect(listenerContext);
             }
         }
     }

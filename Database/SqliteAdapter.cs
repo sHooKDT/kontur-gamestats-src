@@ -16,7 +16,7 @@ namespace Kontur.GameStats.Server
         public SqliteAdapter()
         {
             // TODO: SUPERIMPORTANT: PLACE A ! IN IF
-            if (System.IO.File.Exists(DbName))
+            if (!System.IO.File.Exists(DbName))
                 SQLiteConnection.CreateFile(DbName);
 
             sqlConnection = new SQLiteConnection("Data Source= " + DbName + ";Version=3;");
