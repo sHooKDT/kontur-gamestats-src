@@ -9,7 +9,7 @@ namespace Kontur.GameStats.Server
 {
     public partial class SqliteAdapter
     {
-        public string MakeServerStats (string endpoint)
+        public string MakeServerStats(string endpoint)
         {
             var statsRequests = new Dictionary<string, string>()
             {
@@ -56,7 +56,7 @@ namespace Kontur.GameStats.Server
             return stats.ToString();
         }
 
-        public string MakePlayerStats (string name)
+        public string MakePlayerStats(string name)
         {
             var queries = new Dictionary<string, string>()
             {
@@ -77,8 +77,10 @@ namespace Kontur.GameStats.Server
                     "favouriteGameMode",
                     "SELECT gamemode FROM (SELECT gamemode, count(*) AS cnt FROM matches WHERE id IN (SELECT match_id FROM scoreboard WHERE name = \"{0}\" COLLATE NOCASE) GROUP BY gamemode ORDER BY cnt DESC LIMIT 1)"
                 },
-                // TODO: Calculate average scoreboard percent
-                {"averageScoreboardPercent", ""},
+                {
+                    "averageScoreboardPercent",
+                    "SELECT avg(sp) FROM (SELECT match_id, bp * 100.0 / (tp - 1) AS sp FROM (SELECT match_id, count(*) AS bp, tp FROM scoreboard JOIN ( SELECT match_id AS mi, frags AS target_frags FROM scoreboard WHERE name = \"{0}\" ) ON scoreboard.match_id = mi JOIN ( SELECT match_id AS mid, count(*) AS tp FROM scoreboard GROUP BY match_id ) ON scoreboard.match_id = mid WHERE match_id IN (SELECT match_id FROM scoreboard WHERE name = \"{0}\" ) AND frags < target_frags GROUP BY match_id))"
+                },
                 {
                     "maximumMatchesPerDay",
                     "SELECT max(cnt) FROM ( SELECT timestamp/86400 AS day, count(*) AS cnt FROM matches WHERE id IN (SELECT match_id FROM scoreboard WHERE name = \"{0}\" COLLATE NOCASE) GROUP BY day)"
@@ -105,10 +107,12 @@ namespace Kontur.GameStats.Server
                 {"favouriteServer", this.GetStringArray(queries["favouriteServer"], name).ToArray()[0]},
                 {"uniqueServers", this.GetOneInt(queries["uniqueServers"], name)},
                 {"favouriteGameMode", this.GetStringArray(queries["favouriteGameMode"], name).ToArray()[0]},
+                {"averageScoreboardPercent", this.GetOneDouble(queries["averageScoreboardPercent"], name)},
                 {"maximumMatchesPerDay", this.GetOneInt(queries["maximumMatchesPerDay"], name)},
                 {"averageMatchesPerDay", this.GetOneDouble(queries["averageMatchesPerDay"], name)},
                 {
-                    "lastMatchPlayed", Extras.UnixTimeToDateTime(this.GetOneDouble(queries["lastMatchPlayed"], name)).ToUniversalTime()
+                    "lastMatchPlayed",
+                    Extras.UnixTimeToDateTime(this.GetOneDouble(queries["lastMatchPlayed"], name)).ToUniversalTime()
                 },
                 {"killToDeathRatio", this.GetOneDouble(queries["killToDeathRatio"], name)}
             };
@@ -153,7 +157,10 @@ namespace Kontur.GameStats.Server
             foreach (var match in recentMatchesReport)
             {
                 // TODO: Fix converting to json from scoreboardItem
-                match.Value["results"]["scoreboard"] = new JArray(this.GetScoreboard(match.Key).Select(a => JsonConvert.DeserializeObject(JsonConvert.SerializeObject(a))));
+                match.Value["results"]["scoreboard"] =
+                    new JArray(
+                        this.GetScoreboard(match.Key)
+                            .Select(a => JsonConvert.DeserializeObject(JsonConvert.SerializeObject(a))));
                 recentMatchesJson.Add(match.Value);
             }
 
